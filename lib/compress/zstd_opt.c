@@ -359,6 +359,24 @@ static U32 ZSTD_insertAndFindFirstIndexHash3 (ZSTD_matchState_t* ms,
     return hashTable3[hash3];
 }
 
+/* Iterates through a given ldm seq store to find a match that begins at targetPos
+   The result is stored in *result and function returns 1 if there was a match, otherwise 0 */
+static int ldmSeqStoreHasAbsolutePositionMatch(rawSeqStore_t* ldmSeqStore, U32 targetPos, rawSeq* result) {
+    for (int i = 0; i < ldmSeqStore->size; ++i) {
+        size_t absPos = ldmSeqStore->absPositions[i];
+        if (absPos == targetPos) {
+            DEBUGLOG(8, "ldmSeqStoreHasAbsolutePositionMatch: long distance match found at %u with: (ol: %d ml: %d)\n",
+                     targetPos,
+                     ldmSeqStore->seq[i].offset,
+                     ldmSeqStore->seq[i].matchLength);
+            result->matchLength = ldmSeqStore->seq[i].matchLength;
+            result->offset = ldmSeqStore->seq[i].offset;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 
 /*-*************************************
 *  Binary Tree search
