@@ -359,6 +359,45 @@ static U32 ZSTD_insertAndFindFirstIndexHash3 (ZSTD_matchState_t* ms,
     return hashTable3[hash3];
 }
 
+/* Splits an long distance match sequence at rawSeqStore.pos into two if the remaining bytes in the input buffer
+ * are insufficient to represent the entire match. Returns the split sequence, and updates rawSeqStore
+ * accordingly.
+ */
+static rawSeq maybeSplitLdmSequence(rawSeqStore_t* rawSeqStore,
+                                 U32 remaining, U32 const minMatch)
+{
+    rawSeq sequence = rawSeqStore->seq[rawSeqStore->pos];
+    DEBUGLOG(8, "maybeSplitSequence: (of: %u ml: %u ll: %u) - remaining bytes:%u\n",
+             sequence.offset, sequence.matchLength,
+             sequence.litLength, remaining);
+    remaining += rawSeqStore->seq[rawSeqStore->pos].litLength;
+
+    assert(sequence.offset > 0);
+    if (remaining >= sequence.litLength + sequence.matchLength) {
+        rawSeqStore->pos++;
+        return sequence;
+    }
+    /* Cut the sequence short (offset == 0 ==> rest is literals). */
+    if (remaining <= sequence.litLength) {
+        sequence.offset = 0;
+    } else if (remaining < sequence.litLength + sequence.matchLength) {
+        sequence.matchLength = remaining - sequence.litLength;
+        if (sequence.matchLength < minMatch) {
+            sequence.offset = 0;
+        }
+    }
+    ZSTD_ldm_skipSequences(rawSeqStore, remaining, minMatch);
+    DEBUGLOG(8, "maybeSplitSequence post split: seq (of: %u ml: %u ll: %u)\n", sequence.offset, sequence.matchLength, sequence.litLength);
+
+    /* The absolute position of the second half of the split should be equal to the
+     * absolute position of the original match + the length of the match after adjusting (first half of the split).
+     */
+    rawSeqStore->absPositions[rawSeqStore->pos] += sequence.matchLength;
+
+    DEBUGLOG(8, "Seq store read pos: %zu, absolute position of match updated to: %zu", rawSeqStore->pos, rawSeqStore->absPositions[rawSeqStore->pos]);
+    return sequence;
+}
+
 /* Iterates through a given ldm seq store to find a match that begins at targetPos
    The result is stored in *result and function returns 1 if there was a match, otherwise 0 */
 static int ldmSeqStoreHasAbsolutePositionMatch(rawSeqStore_t* ldmSeqStore, U32 targetPos, rawSeq* result) {
