@@ -190,10 +190,11 @@ typedef struct {
 } rawSeq;
 
 typedef struct {
-  rawSeq* seq;     /* The start of the sequences */
-  size_t pos;      /* The position where reading stopped. <= size. */
-  size_t size;     /* The number of sequences. <= capacity. */
-  size_t capacity; /* The capacity starting from `seq` pointer */
+  rawSeq* seq;          /* The start of the sequences */
+  size_t* absPositions; /* The absolute position of each sequence within a bytestream */
+  size_t pos;           /* The position where reading stopped. <= size. */
+  size_t size;          /* The number of sequences. <= capacity. */
+  size_t capacity;      /* The capacity starting from `seq` pointer */
 } rawSeqStore_t;
 
 typedef struct {
