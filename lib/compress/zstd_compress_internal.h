@@ -152,6 +152,7 @@ struct ZSTD_matchState_t {
     optState_t opt;         /* optimal parser state */
     const ZSTD_matchState_t* dictMatchState;
     ZSTD_compressionParameters cParams;
+    rawSeqStore_t* ldmSeqStore /* reference to ldm seq store if there is one */
 };
 
 typedef struct {
