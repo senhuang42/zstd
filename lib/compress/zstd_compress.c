@@ -2766,6 +2766,21 @@ size_t ZSTD_writeLastEmptyBlock(void* dst, size_t dstCapacity)
     }
 }
 
+int ZSTD_createRawSequencesAbsolutePositions(rawSeqStore_t* rawSeqStore) {
+    if (rawSeqStore->absPositions)
+        return 1;
+    DEBUGLOG(8, "Generating raw sequences' absolute positions. ZSTD_createRawSequencesAbsolutePositions()");
+    size_t currPos = 1;
+    rawSeqStore->absPositions = ZSTD_customMalloc(sizeof(size_t)*rawSeqStore->size, ZSTD_defaultCMem);
+    for (int i = 0; i < rawSeqStore->size; ++i) {
+        rawSeq currLdm = rawSeqStore->seq[i];
+        currPos += currLdm.litLength;
+        rawSeqStore->absPositions[i] = currPos;
+        currPos += currLdm.matchLength;
+    }
+    return 0;
+}
+
 size_t ZSTD_referenceExternalSequences(ZSTD_CCtx* cctx, rawSeq* seq, size_t nbSeq)
 {
     RETURN_ERROR_IF(cctx->stage != ZSTDcs_init, stage_wrong,
