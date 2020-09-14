@@ -2331,6 +2331,8 @@ static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
         if (zc->externSeqStore.pos < zc->externSeqStore.size) {
             assert(!zc->appliedParams.ldmParams.enableLdm);
             /* Updates ldmSeqStore.pos */
+            ms->ldmSeqStore = &zc->externSeqStore;
+
             lastLLSize =
                 ZSTD_ldm_blockCompress(&zc->externSeqStore,
                                        ms, &zc->seqStore,
@@ -2338,7 +2340,7 @@ static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
                                        src, srcSize);
             assert(zc->externSeqStore.pos <= zc->externSeqStore.size);
         } else if (zc->appliedParams.ldmParams.enableLdm) {
-            rawSeqStore_t ldmSeqStore = {NULL, 0, 0, 0};
+            rawSeqStore_t ldmSeqStore = {NULL, NULL, 0, 0, 0};
 
             ldmSeqStore.seq = zc->ldmSequences;
             ldmSeqStore.capacity = zc->maxNbLdmSequences;
@@ -2346,6 +2348,8 @@ static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
             FORWARD_IF_ERROR(ZSTD_ldm_generateSequences(&zc->ldmState, &ldmSeqStore,
                                                &zc->appliedParams.ldmParams,
                                                src, srcSize), "");
+            ms->ldmSeqStore = &ldmSeqStore;
+
             /* Updates ldmSeqStore.pos */
             lastLLSize =
                 ZSTD_ldm_blockCompress(&ldmSeqStore,

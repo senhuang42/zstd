@@ -579,6 +579,16 @@ size_t ZSTD_ldm_blockCompress(rawSeqStore_t* rawSeqStore,
     DEBUGLOG(5, "ZSTD_ldm_blockCompress: srcSize=%zu", srcSize);
     assert(rawSeqStore->pos <= rawSeqStore->size);
     assert(rawSeqStore->size <= rawSeqStore->capacity);
+
+    /* For high compression levels (opt parser), make long distance matches a
+     * candidate for the opt parser, rather than accepting the LDMs and only
+     * applying the block compressor (opt parser) to the literal blocks
+     * in between the long matches
+     */
+    if (cParams->strategy >= ZSTD_btopt) {
+        return blockCompressor(ms, seqStore, rep, src, srcSize);
+    }
+
     /* Loop through each sequence and apply the block compressor to the lits */
     while (rawSeqStore->pos < rawSeqStore->size && ip < iend) {
         /* maybeSplitSequence updates rawSeqStore->pos */
