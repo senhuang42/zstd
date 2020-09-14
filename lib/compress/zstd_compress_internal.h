@@ -1127,6 +1127,14 @@ size_t ZSTD_compress_advanced_internal(ZSTD_CCtx* cctx,
 size_t ZSTD_writeLastEmptyBlock(void* dst, size_t dstCapacity);
 
 
+/* ZSTD_createRawSequencesAbsolutePositions() :
+ * Given a rawSeqStore_t, allocates a buffer for the absolute positions of the sequences
+ * and populates it with the values that correspond to each sequence.
+ * The allocated array is of equal size to the array rawSeqStore_t->seq.
+ * @return : 1 on failure, 0 on success
+ */
+int ZSTD_createRawSequencesAbsolutePositions(rawSeqStore_t* rawSeqStore);
+
 /* ZSTD_referenceExternalSequences() :
  * Must be called before starting a compression operation.
  * seqs must parse a prefix of the source.
