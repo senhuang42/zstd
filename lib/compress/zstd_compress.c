@@ -2332,7 +2332,7 @@ static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
             assert(!zc->appliedParams.ldmParams.enableLdm);
             /* Updates ldmSeqStore.pos */
             ms->ldmSeqStore = &zc->externSeqStore;
-
+            ZSTD_createRawSequencesAbsolutePositions(ms->ldmSeqStore);
             lastLLSize =
                 ZSTD_ldm_blockCompress(&zc->externSeqStore,
                                        ms, &zc->seqStore,
@@ -2349,6 +2349,7 @@ static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
                                                &zc->appliedParams.ldmParams,
                                                src, srcSize), "");
             ms->ldmSeqStore = &ldmSeqStore;
+            ZSTD_createRawSequencesAbsolutePositions(ms->ldmSeqStore);
 
             /* Updates ldmSeqStore.pos */
             lastLLSize =
