@@ -370,9 +370,18 @@ static rawSeq maybeSplitLdmSequence(rawSeqStore_t* rawSeqStore,
     DEBUGLOG(8, "maybeSplitSequence: (of: %u ml: %u ll: %u) - remaining bytes:%u\n",
              sequence.offset, sequence.matchLength,
              sequence.litLength, remaining);
+
+    /* Since "U32 remaining" represents the number of bytes from the current position in
+     * the bytestream until the end of the block, we need to adjust "remaining"
+     * to account for the seq.litLength bytes that represents the size of the literals block which precedes
+     * the actual LDM. We do so by incrementing remaining by litLength.
+     */
     remaining += rawSeqStore->seq[rawSeqStore->pos].litLength;
 
     assert(sequence.offset > 0);
+    /* The remaining bytes are enough, we can use this match unaltered, and
+     * increment our read pos.
+     */
     if (remaining >= sequence.litLength + sequence.matchLength) {
         rawSeqStore->pos++;
         return sequence;
@@ -386,6 +395,7 @@ static rawSeq maybeSplitLdmSequence(rawSeqStore_t* rawSeqStore,
             sequence.offset = 0;
         }
     }
+    /* Skip past `remaining` bytes for the future sequences. */
     ZSTD_ldm_skipSequences(rawSeqStore, remaining, minMatch);
     DEBUGLOG(8, "maybeSplitSequence post split: seq (of: %u ml: %u ll: %u)\n", sequence.offset, sequence.matchLength, sequence.litLength);
 
