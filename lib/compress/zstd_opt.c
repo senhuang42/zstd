@@ -360,46 +360,6 @@ static U32 ZSTD_insertAndFindFirstIndexHash3 (ZSTD_matchState_t* ms,
     return hashTable3[hash3];
 }
 
-/* Splits an long distance match sequence at rawSeqStore.pos into two if the remaining bytes in the input buffer
- * are insufficient to represent the entire match. Returns the split sequence, and updates rawSeqStore
- * accordingly.
- */
-static rawSeq maybeSplitLdm(rawSeqStore_t* rawSeqStore,
-                                 U32 remaining, U32 const minMatch)
-{
-    rawSeq sequence = rawSeqStore->seq[rawSeqStore->pos];
-
-    
-    remaining += rawSeqStore->seq[rawSeqStore->pos].litLength;
-
-    assert(sequence.offset > 0);
-    /* The remaining bytes are enough, we can use this match unaltered, and
-     * increment our read pos.
-     */
-    if (remaining >= sequence.litLength + sequence.matchLength) {
-        rawSeqStore->pos++;
-        return sequence;
-    }
-    /* Cut the sequence short (offset == 0 ==> rest is literals). */
-    if (remaining <= sequence.litLength) {
-        sequence.offset = 0;
-    } else if (remaining < sequence.litLength + sequence.matchLength) {
-        sequence.matchLength = remaining - sequence.litLength;
-        if (sequence.matchLength < minMatch) {
-            sequence.offset = 0;
-        }
-    }
-    /* Skip past `remaining` bytes for the future sequences. */
-    ZSTD_ldm_skipSequences(rawSeqStore, remaining, minMatch);
-
-    /* The absolute position of the second half of the split should be equal to the
-     * absolute position of the original match + the length of the match after adjusting (first half of the split).
-     */
-    rawSeqStore->absPositions[rawSeqStore->pos] += sequence.matchLength;
-    DEBUGLOG(8, "Seq store read pos: %zu, absolute position of match updated to: %zu", rawSeqStore->pos, rawSeqStore->absPositions[rawSeqStore->pos]);
-    return sequence;
-}
-
 /* Iterates through a given ldm seq store to find a match that begins at targetPos
    The result is stored in *result and function returns 1 if there was a match, otherwise 0 */
 static int ldmSeqStoreHasAbsolutePositionMatch(rawSeqStore_t* ldmSeqStore, U32 targetPos, rawSeq* result) {
@@ -802,7 +762,7 @@ U32 ZSTD_insertBtAndGetAllMatches (
             U32 offset = possibleLdm.offset;
 
             /* We take a conservative approach to including LDMs: longer matches and shorter offsets
-               are ~generally~ better. */
+               are ~generally~ better, so we only include an LDM if it satisfies both conditions */
             if (matchLength >= bestLength && offset <= matches[mnum].off) {
                 DEBUGLOG(8, "Using long distance match of length %u at distance %u (offCode=%u)\n",
                         (U32)matchLength, offset, offset + ZSTD_REP_MOVE);
