@@ -794,6 +794,7 @@ U32 ZSTD_insertBtAndGetAllMatches (
 
     /* Handle long distance matches if applicable. */
     if (ms->ldmSeqStore && ms->ldmSeqStore->size > 0) {
+        rawSeqStore_t* ldmSeqStore = ms->ldmSeqStore;
         rawSeq possibleLdm;
         if (ldmSeqStoreHasAbsolutePositionMatch(ms->ldmSeqStore, curr, &possibleLdm)) {
             DEBUGLOG(8, "Long distance match found at pos: %u", current);
@@ -811,14 +812,14 @@ U32 ZSTD_insertBtAndGetAllMatches (
                  * the actual LDM. We do so by incrementing remaining by litLength.
                  */
                 U32 remainingBytes = (U32)(iLimit - ip + possibleLdm.litLength);
-                rawSeq finalSeq = ZSTD_ldm_maybeSplitSequence(ms->ldmSeqStore, remainingBytes, minMatch); 
+                rawSeq finalSeq = ZSTD_ldm_maybeSplitSequence(ldmSeqStore, remainingBytes, minMatch); 
 
                 /* The absolute position of the second half of the split should be equal to the
                  * absolute position of the original match + the length of the match after adjusting (first half of the split).
                  * And we should only adjust the absolute position if there was indeed a match split.
                  */
                 if (finalSeq.matchLength != possibleLdm.matchLength || finalSeq.offset != possibleLdm.offset) {
-                    ms->ldmSeqStore->absPositions[ms->ldmSeqStore->pos] += finalSeq.matchLength;
+                    ldmSeqStore->absPositions[ldmSeqStore->pos] += finalSeq.matchLength;
                 }
 
                 /* Append the (possibly split) LDM to the end of our match candidates, signifying that it's the "best" candidate */
