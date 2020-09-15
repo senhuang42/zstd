@@ -800,6 +800,27 @@ U32 ZSTD_insertBtAndGetAllMatches (
         }
     }
 
+    /* Handle long distance matches if applicable. */
+    if (ms->ldmSeqStore && ms->ldmSeqStore->size > 0) {
+        rawSeq possibleLdm;
+        if (ldmSeqStoreHasAbsolutePositionMatch(ms->ldmSeqStore, curr, &possibleLdm)) {
+            DEBUGLOG(8, "Long distance match found at pos: %u", current);
+            U32 matchLength = possibleLdm.matchLength;
+            U32 offset = possibleLdm.offset;
+            if (matchLength >= bestLength && offset <= matches[mnum].off) {
+                DEBUGLOG(8, "Using long distance match of length %u at distance %u (offCode=%u)\n",
+                        (U32)matchLength, offset, offset + ZSTD_REP_MOVE);
+                rawSeq finalSeq = maybeSplitLdmSequence(ms->ldmSeqStore, (U32)(iLimit - ip), minMatch);
+                matchLength = finalSeq.matchLength;
+                offset = finalSeq.offset;
+                bestLength = matchLength;
+                matches[mnum].off = offset + ZSTD_REP_MOVE;
+                matches[mnum].len = (U32)matchLength;
+                mnum++;
+            }
+        }
+    }
+
     assert(matchEndIdx > curr+8);
     ms->nextToUpdate = matchEndIdx - 8;  /* skip repetitive patterns */
     return mnum;
