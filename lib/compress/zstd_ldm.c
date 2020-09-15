@@ -532,7 +532,8 @@ void ZSTD_ldm_skipSequences(rawSeqStore_t* rawSeqStore, size_t srcSize, U32 cons
 }
 
 int ZSTD_ldm_hasMatchAtAbsolutePosition(rawSeqStore_t* ldmSeqStore, U32 targetPos) {
-    for (int i = 0; i < ldmSeqStore->size; ++i) {
+    size_t i = 0;
+    for (; i < ldmSeqStore->size; ++i) {
         size_t absPos = ldmSeqStore->absPositions[i];
         if (absPos == targetPos) {
             DEBUGLOG(8, "ZSTD_ldm_hasMatchAtAbsolutePosition(): long distance match exists at %u with: (ol: %d ml: %d)\n",

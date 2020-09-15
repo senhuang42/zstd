@@ -2772,15 +2772,16 @@ size_t ZSTD_writeLastEmptyBlock(void* dst, size_t dstCapacity)
 }
 
 int ZSTD_createRawSequencesAbsolutePositions(rawSeqStore_t* rawSeqStore) {
+    size_t currPos = 1;
+    size_t idx = 0;
     if (rawSeqStore->absPositions)
         return 1;
     DEBUGLOG(8, "Generating raw sequences' absolute positions. ZSTD_createRawSequencesAbsolutePositions()");
-    size_t currPos = 1;
     rawSeqStore->absPositions = ZSTD_customMalloc(sizeof(size_t)*rawSeqStore->size, ZSTD_defaultCMem);
-    for (int i = 0; i < rawSeqStore->size; ++i) {
-        rawSeq currLdm = rawSeqStore->seq[i];
+    for (; idx < rawSeqStore->size; ++idx) {
+        rawSeq currLdm = rawSeqStore->seq[idx];
         currPos += currLdm.litLength;
-        rawSeqStore->absPositions[i] = currPos;
+        rawSeqStore->absPositions[idx] = currPos;
         currPos += currLdm.matchLength;
     }
     return 0;
