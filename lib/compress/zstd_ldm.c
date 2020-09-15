@@ -548,10 +548,10 @@ int ZSTD_ldm_hasMatchAtAbsolutePosition(rawSeqStore_t* ldmSeqStore, U32 targetPo
 rawSeq ZSTD_ldm_maybeSplitSequence(rawSeqStore_t* rawSeqStore,
                                    U32 const remaining, U32 const minMatch)
 {
+    rawSeq sequence = rawSeqStore->seq[rawSeqStore->pos];
     DEBUGLOG(8, "ZSTD_ldm_maybeSplitSequence(): (of: %u ml: %u ll: %u) - remaining bytes:%u\n",
              sequence.offset, sequence.matchLength,
              sequence.litLength, remaining);
-    rawSeq sequence = rawSeqStore->seq[rawSeqStore->pos];
     assert(sequence.offset > 0);
     /* No split necessary, just update the read position */
     if (remaining >= sequence.litLength + sequence.matchLength) {
