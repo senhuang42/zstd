@@ -745,12 +745,11 @@ U32 ZSTD_insertBtAndGetAllMatches (
 
             /* We take a conservative approach to including LDMs: longer matches and shorter offsets
                are ~generally~ better, so we only include an LDM if it satisfies both conditions */
-            if (matchLength >= bestLength && offset <= matches[mnum].off) {
-                DEBUGLOG(8, "Using long distance match of length %u at distance %u (offCode=%u)\n",
+            if (matchLength >= bestLength && offset <= matches[mnum-1].off) {
+                printf("Using long distance match of length %u at distance %u (offCode=%u)\n",
                         (U32)matchLength, offset, offset + ZSTD_REP_MOVE);
 
-                /* As we prepare to split the LDM, we need to adjust the remaining number of bytes that we pass to ZSTD_ldm_maybeSplitSequence.
-                 * We must account for the seq.litLength bytes that represents the size of the literals block which precedes
+                /* We must account for the seq.litLength bytes that represents the size of the literals block which precedes
                  * the actual LDM. We do so by incrementing remaining by litLength.
                  */
                 U32 remainingBytes = (U32)(iLimit - ip + ldmSeqStore->seq[ldmSeqStore->pos].litLength);

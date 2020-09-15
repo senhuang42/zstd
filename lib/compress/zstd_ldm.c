@@ -532,7 +532,7 @@ void ZSTD_ldm_skipSequences(rawSeqStore_t* rawSeqStore, size_t srcSize, U32 cons
 }
 
 int ZSTD_ldm_hasMatchAtAbsolutePosition(rawSeqStore_t* ldmSeqStore, U32 targetPos) {
-    size_t i = 0;
+    size_t i = ldmSeqStore->pos;
     for (; i < ldmSeqStore->size; ++i) {
         size_t absPos = ldmSeqStore->absPositions[i];
         if (absPos == targetPos) {
@@ -550,7 +550,7 @@ rawSeq ZSTD_ldm_maybeSplitSequence(rawSeqStore_t* rawSeqStore,
                                    U32 const remaining, U32 const minMatch)
 {
     rawSeq sequence = rawSeqStore->seq[rawSeqStore->pos];
-    DEBUGLOG(8, "ZSTD_ldm_maybeSplitSequence(): (of: %u ml: %u ll: %u) - remaining bytes:%u\n",
+    printf("ZSTD_ldm_maybeSplitSequence(): (of: %u ml: %u ll: %u) - remaining bytes:%u\n",
              sequence.offset, sequence.matchLength,
              sequence.litLength, remaining);
     assert(sequence.offset > 0);
@@ -568,7 +568,7 @@ rawSeq ZSTD_ldm_maybeSplitSequence(rawSeqStore_t* rawSeqStore,
             sequence.offset = 0;
         }
     }
-    DEBUGLOG(8, "ZSTD_ldm_maybeSplitSequence(): after split - (of: %u ml: %u ll: %u)\n",
+    printf("ZSTD_ldm_maybeSplitSequence(): after split - (of: %u ml: %u ll: %u)\n",
              sequence.offset, sequence.matchLength,
              sequence.litLength);
     /* Skip past `remaining` bytes for the future sequences. */
