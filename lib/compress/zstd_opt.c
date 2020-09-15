@@ -753,7 +753,7 @@ U32 ZSTD_insertBtAndGetAllMatches (
                  * We must account for the seq.litLength bytes that represents the size of the literals block which precedes
                  * the actual LDM. We do so by incrementing remaining by litLength.
                  */
-                U32 remainingBytes = (U32)(iLimit - ip + possibleLdm.litLength);
+                U32 remainingBytes = (U32)(iLimit - ip + ldmSeqStore->seq[ldmSeqStore->pos].litLength);
                 rawSeq finalSeq = ZSTD_ldm_maybeSplitSequence(ldmSeqStore, remainingBytes, minMatch); 
 
                 /* The absolute position of the second half of the split should be equal to the
