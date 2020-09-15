@@ -94,11 +94,10 @@ rawSeq ZSTD_ldm_maybeSplitSequence(rawSeqStore_t* rawSeqStore,
 /**
  * ZSTD_ldm_hasMatchAtAbsolutePosition():
  * 
- * Iterates through a given ldm seq store to find a match that begins at targetPos
- * The result is stored in *result.
+ * Iterates through a given ldm seq store to find a match that begins at targetPos.
  * 
- * Returns -1 if there was a match.
- * otherwise returns the index of the match in the ldmSeqStore.
+ * Returns -1 if there was no match.
+ * Otherwise returns the index of the match in the ldmSeqStore.
  */
 int ZSTD_ldm_hasMatchAtAbsolutePosition(rawSeqStore_t* ldmSeqStore, U32 targetPos);
 
