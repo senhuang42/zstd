@@ -2357,7 +2357,7 @@ static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
                                        ms, &zc->seqStore,
                                        zc->blockState.nextCBlock->rep,
                                        src, srcSize);
-            assert(ldmSeqStore.pos == ldmSeqStore.size);
+            //assert(ldmSeqStore.pos == ldmSeqStore.size);
         } else {   /* not long range mode */
             ZSTD_blockCompressor const blockCompressor = ZSTD_selectBlockCompressor(zc->appliedParams.cParams.strategy, dictMode);
             lastLLSize = blockCompressor(ms, &zc->seqStore, zc->blockState.nextCBlock->rep, src, srcSize);
