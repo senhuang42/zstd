@@ -80,6 +80,8 @@ void ZSTD_ldm_skipSequences(rawSeqStore_t* rawSeqStore, size_t srcSize,
 
 
 /**
+ * ZSTD_ldm_maybeSplitSequence():
+ * 
  * If the sequence length is longer than remaining then the sequence is split
  * between this block and the next.
  *
@@ -89,6 +91,16 @@ void ZSTD_ldm_skipSequences(rawSeqStore_t* rawSeqStore, size_t srcSize,
 rawSeq ZSTD_ldm_maybeSplitSequence(rawSeqStore_t* rawSeqStore,
                                    U32 const remaining, U32 const minMatch);
 
+/**
+ * ZSTD_ldm_hasMatchAtAbsolutePosition():
+ * 
+ * Iterates through a given ldm seq store to find a match that begins at targetPos
+ * The result is stored in *result.
+ * 
+ * Returns -1 if there was a match.
+ * otherwise returns the index of the match in the ldmSeqStore.
+ */
+int ZSTD_ldm_hasMatchAtAbsolutePosition(rawSeqStore_t* ldmSeqStore, U32 targetPos);
 
 /** ZSTD_ldm_getTableSize() :
  *  Estimate the space needed for long distance matching tables or 0 if LDM is

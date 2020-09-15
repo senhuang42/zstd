@@ -11,7 +11,7 @@
 #include "zstd_compress_internal.h"
 #include "hist.h"
 #include "zstd_opt.h"
-#include "zstd_ldm.h"   /* ZSTD_ldm_maybeSplitSequence */
+#include "zstd_ldm.h"   /* ZSTD_ldm_maybeSplitSequence, ZSTD_ldm_hasMatchAtAbsolutePosition */
 
 
 #define ZSTD_LITFREQ_ADD    2   /* scaling factor for litFreq, so that frequencies adapt faster to new stats */
@@ -359,25 +359,6 @@ static U32 ZSTD_insertAndFindFirstIndexHash3 (ZSTD_matchState_t* ms,
     *nextToUpdate3 = target;
     return hashTable3[hash3];
 }
-
-/* Iterates through a given ldm seq store to find a match that begins at targetPos
-   The result is stored in *result and function returns 1 if there was a match, otherwise 0 */
-static int ldmSeqStoreHasAbsolutePositionMatch(rawSeqStore_t* ldmSeqStore, U32 targetPos, rawSeq* result) {
-    for (int i = 0; i < ldmSeqStore->size; ++i) {
-        size_t absPos = ldmSeqStore->absPositions[i];
-        if (absPos == targetPos) {
-            DEBUGLOG(8, "ldmSeqStoreHasAbsolutePositionMatch: long distance match found at %u with: (ol: %d ml: %d)\n",
-                     targetPos,
-                     ldmSeqStore->seq[i].offset,
-                     ldmSeqStore->seq[i].matchLength);
-            result->matchLength = ldmSeqStore->seq[i].matchLength;
-            result->offset = ldmSeqStore->seq[i].offset;
-            return 1;
-        }
-    }
-    return 0;
-}
-
 
 /*-*************************************
 *  Binary Tree search
@@ -754,10 +735,11 @@ U32 ZSTD_insertBtAndGetAllMatches (
 
     /* Handle long distance matches if applicable. */
     if (ms->ldmSeqStore && ms->ldmSeqStore->size > 0) {
-        rawSeqStore_t* ldmSeqStore = ms->ldmSeqStore;
         rawSeq possibleLdm;
-        if (ldmSeqStoreHasAbsolutePositionMatch(ms->ldmSeqStore, curr, &possibleLdm)) {
-            DEBUGLOG(8, "Long distance match found at pos: %u", current);
+        rawSeqStore_t* ldmSeqStore = ms->ldmSeqStore;
+        int ldmIndex = ZSTD_ldm_hasMatchAtAbsolutePosition(ldmSeqStore, curr);
+        if (ldmIndex >= 0) {
+            possibleLdm = ldmSeqStore->seq[ldmIndex];
             U32 matchLength = possibleLdm.matchLength;
             U32 offset = possibleLdm.offset;
 

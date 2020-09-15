@@ -531,10 +531,24 @@ void ZSTD_ldm_skipSequences(rawSeqStore_t* rawSeqStore, size_t srcSize, U32 cons
     }
 }
 
+int ZSTD_ldm_hasMatchAtAbsolutePosition(rawSeqStore_t* ldmSeqStore, U32 targetPos) {
+    for (int i = 0; i < ldmSeqStore->size; ++i) {
+        size_t absPos = ldmSeqStore->absPositions[i];
+        if (absPos == targetPos) {
+            DEBUGLOG(8, "ZSTD_ldm_hasMatchAtAbsolutePosition(): long distance match exists at %u with: (ol: %d ml: %d)\n",
+                     targetPos,
+                     ldmSeqStore->seq[i].offset,
+                     ldmSeqStore->seq[i].matchLength);
+            return i;
+        }
+    }
+    return -1;
+}
+
 rawSeq ZSTD_ldm_maybeSplitSequence(rawSeqStore_t* rawSeqStore,
                                    U32 const remaining, U32 const minMatch)
 {
-    DEBUGLOG(8, "maybeSplitSequence: (of: %u ml: %u ll: %u) - remaining bytes:%u\n",
+    DEBUGLOG(8, "ZSTD_ldm_maybeSplitSequence(): (of: %u ml: %u ll: %u) - remaining bytes:%u\n",
              sequence.offset, sequence.matchLength,
              sequence.litLength, remaining);
     rawSeq sequence = rawSeqStore->seq[rawSeqStore->pos];
@@ -553,7 +567,7 @@ rawSeq ZSTD_ldm_maybeSplitSequence(rawSeqStore_t* rawSeqStore,
             sequence.offset = 0;
         }
     }
-    DEBUGLOG(8, "maybeSplitSequence after split: seq (of: %u ml: %u ll: %u)\n",
+    DEBUGLOG(8, "ZSTD_ldm_maybeSplitSequence(): after split - (of: %u ml: %u ll: %u)\n",
              sequence.offset, sequence.matchLength,
              sequence.litLength);
     /* Skip past `remaining` bytes for the future sequences. */
