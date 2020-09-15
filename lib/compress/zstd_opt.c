@@ -11,6 +11,7 @@
 #include "zstd_compress_internal.h"
 #include "hist.h"
 #include "zstd_opt.h"
+#include "zstd_ldm.h"   /* ZSTD_ldm_maybeSplitSequence */
 
 
 #define ZSTD_LITFREQ_ADD    2   /* scaling factor for litFreq, so that frequencies adapt faster to new stats */
@@ -363,19 +364,12 @@ static U32 ZSTD_insertAndFindFirstIndexHash3 (ZSTD_matchState_t* ms,
  * are insufficient to represent the entire match. Returns the split sequence, and updates rawSeqStore
  * accordingly.
  */
-static rawSeq maybeSplitLdmSequence(rawSeqStore_t* rawSeqStore,
+static rawSeq maybeSplitLdm(rawSeqStore_t* rawSeqStore,
                                  U32 remaining, U32 const minMatch)
 {
     rawSeq sequence = rawSeqStore->seq[rawSeqStore->pos];
-    DEBUGLOG(8, "maybeSplitSequence: (of: %u ml: %u ll: %u) - remaining bytes:%u\n",
-             sequence.offset, sequence.matchLength,
-             sequence.litLength, remaining);
 
-    /* Since "U32 remaining" represents the number of bytes from the current position in
-     * the bytestream until the end of the block, we need to adjust "remaining"
-     * to account for the seq.litLength bytes that represents the size of the literals block which precedes
-     * the actual LDM. We do so by incrementing remaining by litLength.
-     */
+    
     remaining += rawSeqStore->seq[rawSeqStore->pos].litLength;
 
     assert(sequence.offset > 0);
@@ -397,13 +391,11 @@ static rawSeq maybeSplitLdmSequence(rawSeqStore_t* rawSeqStore,
     }
     /* Skip past `remaining` bytes for the future sequences. */
     ZSTD_ldm_skipSequences(rawSeqStore, remaining, minMatch);
-    DEBUGLOG(8, "maybeSplitSequence post split: seq (of: %u ml: %u ll: %u)\n", sequence.offset, sequence.matchLength, sequence.litLength);
 
     /* The absolute position of the second half of the split should be equal to the
      * absolute position of the original match + the length of the match after adjusting (first half of the split).
      */
     rawSeqStore->absPositions[rawSeqStore->pos] += sequence.matchLength;
-
     DEBUGLOG(8, "Seq store read pos: %zu, absolute position of match updated to: %zu", rawSeqStore->pos, rawSeqStore->absPositions[rawSeqStore->pos]);
     return sequence;
 }
@@ -807,10 +799,29 @@ U32 ZSTD_insertBtAndGetAllMatches (
             DEBUGLOG(8, "Long distance match found at pos: %u", current);
             U32 matchLength = possibleLdm.matchLength;
             U32 offset = possibleLdm.offset;
+
+            /* We take a conservative approach to including LDMs: longer matches and shorter offsets
+               are ~generally~ better. */
             if (matchLength >= bestLength && offset <= matches[mnum].off) {
                 DEBUGLOG(8, "Using long distance match of length %u at distance %u (offCode=%u)\n",
                         (U32)matchLength, offset, offset + ZSTD_REP_MOVE);
-                rawSeq finalSeq = maybeSplitLdmSequence(ms->ldmSeqStore, (U32)(iLimit - ip), minMatch);
+
+                /* As we prepare to split the LDM, we need to adjust the remaining number of bytes that we pass to ZSTD_ldm_maybeSplitSequence.
+                 * We must account for the seq.litLength bytes that represents the size of the literals block which precedes
+                 * the actual LDM. We do so by incrementing remaining by litLength.
+                 */
+                U32 remainingBytes = (U32)(iLimit - ip + possibleLdm.litLength);
+                rawSeq finalSeq = ZSTD_ldm_maybeSplitSequence(ms->ldmSeqStore, remainingBytes, minMatch); 
+
+                /* The absolute position of the second half of the split should be equal to the
+                 * absolute position of the original match + the length of the match after adjusting (first half of the split).
+                 * And we should only adjust the absolute position if there was indeed a match split.
+                 */
+                if (finalSeq.matchLength != possibleLdm.matchLength || finalSeq.offset != possibleLdm.offset) {
+                    ms->ldmSeqStore->absPositions[ms->ldmSeqStore->pos] += finalSeq.matchLength;
+                }
+
+                /* Append the (possibly split) LDM to the end of our match candidates, signifying that it's the "best" candidate */
                 matchLength = finalSeq.matchLength;
                 offset = finalSeq.offset;
                 bestLength = matchLength;

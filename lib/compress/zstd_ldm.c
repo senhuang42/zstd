@@ -531,24 +531,20 @@ void ZSTD_ldm_skipSequences(rawSeqStore_t* rawSeqStore, size_t srcSize, U32 cons
     }
 }
 
-/**
- * If the sequence length is longer than remaining then the sequence is split
- * between this block and the next.
- *
- * Returns the current sequence to handle, or if the rest of the block should
- * be literals, it returns a sequence with offset == 0.
- */
-static rawSeq maybeSplitSequence(rawSeqStore_t* rawSeqStore,
-                                 U32 const remaining, U32 const minMatch)
+rawSeq ZSTD_ldm_maybeSplitSequence(rawSeqStore_t* rawSeqStore,
+                                   U32 const remaining, U32 const minMatch)
 {
+    DEBUGLOG(8, "maybeSplitSequence: (of: %u ml: %u ll: %u) - remaining bytes:%u\n",
+             sequence.offset, sequence.matchLength,
+             sequence.litLength, remaining);
     rawSeq sequence = rawSeqStore->seq[rawSeqStore->pos];
     assert(sequence.offset > 0);
-    /* Likely: No partial sequence */
+    /* No split necessary, just update the read position */
     if (remaining >= sequence.litLength + sequence.matchLength) {
         rawSeqStore->pos++;
         return sequence;
     }
-    /* Cut the sequence short (offset == 0 ==> rest is literals). */
+    /* Cut the sequence short. (If offset == 0 ==> rest is literals). */
     if (remaining <= sequence.litLength) {
         sequence.offset = 0;
     } else if (remaining < sequence.litLength + sequence.matchLength) {
@@ -557,6 +553,9 @@ static rawSeq maybeSplitSequence(rawSeqStore_t* rawSeqStore,
             sequence.offset = 0;
         }
     }
+    DEBUGLOG(8, "maybeSplitSequence after split: seq (of: %u ml: %u ll: %u)\n",
+             sequence.offset, sequence.matchLength,
+             sequence.litLength);
     /* Skip past `remaining` bytes for the future sequences. */
     ZSTD_ldm_skipSequences(rawSeqStore, remaining, minMatch);
     return sequence;
@@ -592,8 +591,8 @@ size_t ZSTD_ldm_blockCompress(rawSeqStore_t* rawSeqStore,
     /* Loop through each sequence and apply the block compressor to the lits */
     while (rawSeqStore->pos < rawSeqStore->size && ip < iend) {
         /* maybeSplitSequence updates rawSeqStore->pos */
-        rawSeq const sequence = maybeSplitSequence(rawSeqStore,
-                                                   (U32)(iend - ip), minMatch);
+        rawSeq const sequence = ZSTD_ldm_maybeSplitSequence(rawSeqStore,
+                                                    (U32)(iend - ip), minMatch);
         int i;
         /* End signal */
         if (sequence.offset == 0)

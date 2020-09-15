@@ -79,6 +79,17 @@ void ZSTD_ldm_skipSequences(rawSeqStore_t* rawSeqStore, size_t srcSize,
     U32 const minMatch);
 
 
+/**
+ * If the sequence length is longer than remaining then the sequence is split
+ * between this block and the next.
+ *
+ * Returns the current sequence to handle, or if the rest of the block should
+ * be literals, it returns a sequence with offset == 0.
+ */
+rawSeq ZSTD_ldm_maybeSplitSequence(rawSeqStore_t* rawSeqStore,
+                                   U32 const remaining, U32 const minMatch);
+
+
 /** ZSTD_ldm_getTableSize() :
  *  Estimate the space needed for long distance matching tables or 0 if LDM is
  *  disabled.
