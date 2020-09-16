@@ -592,7 +592,9 @@ U32 ZSTD_insertBtAndGetAllMatches (
                   && (ZSTD_readMINMATCH(ip, minMatch) == ZSTD_readMINMATCH(repMatch, minMatch)) ) {
                     repLen = (U32)ZSTD_count_2segments(ip+minMatch, repMatch+minMatch, iLimit, dmsEnd, prefixStart) + minMatch;
             }   }
-            /* save longer solution */
+            /* save longer solution - repcodes in general are the "best" matches in terms of compressibility,
+             * so we return early if we detect one.
+             */
             if (repLen > bestLength) {
                 DEBUGLOG(8, "found repCode %u (ll0:%u, offset:%u) of length %u",
                             repCode, ll0, repOffset, repLen);
@@ -605,7 +607,9 @@ U32 ZSTD_insertBtAndGetAllMatches (
                     return mnum;
     }   }   }   }
 
-    /* HC3 match finder */
+    /* HC3 match finder
+     * Use a hash table to find matches of length 3 for speed purposes.
+     */
     if ((mls == 3) /*static*/ && (bestLength < mls)) {
         U32 const matchIndex3 = ZSTD_insertAndFindFirstIndexHash3(ms, nextToUpdate3, ip);
         if ((matchIndex3 >= matchLow)
@@ -744,21 +748,21 @@ U32 ZSTD_insertBtAndGetAllMatches (
             U32 matchLength = possibleLdm.matchLength;
             U32 offset = possibleLdm.offset;
 
-            /* We take a conservative approach to including LDMs: longer matches and shorter offsets
-               are generally better, so we only include an LDM if it satisfies both conditions */
+            /* longer matches and shorter offsets are generally better, so we only include
+             * an LDM candidate match if it satisfies both conditions */
             if (matchLength >= bestLength && offset + ZSTD_REP_MOVE <= matches[mnum-1].off) {
                 DEBUGLOG(8, "Using long distance match of length %u at distance %u (offCode=%u)\n",
                         (U32)matchLength, offset, offset + ZSTD_REP_MOVE);
 
-                /* We must account for the seq.litLength bytes that represents the size of the literals block which precedes
-                 * the actual LDM. We do so by incrementing remaining by litLength.
+                /* We must account for the seq->litLength bytes that represents the size of the literals block which precedes
+                 * the actual LDM, since ZSTD_ldm_maybeSplitSequence() counts "remaining" from the beginning of block of LDM literals.
                  */
                 U32 remainingBytes = (U32)(iLimit - ip + ldmSeqStore->seq[ldmIndex].litLength);
                 rawSeq finalSeq = ZSTD_ldm_maybeSplitSequence(ldmSeqStore, remainingBytes, minMatch); 
 
-                /* The absolute position of the second half of the split should be equal to the
-                 * absolute position of the original match + the length of the match after adjusting (first half of the split).
-                 * And we should only adjust the absolute position if there was indeed a match split.
+                /* The absolute position of the second half of the split equals the
+                 * absolute position of the original match + the match length post-adjustment (first half of the split).
+                 * And we should only adjust the absolute position only if an LDM was actually split.
                  */
                 if (finalSeq.matchLength != possibleLdm.matchLength || finalSeq.offset != possibleLdm.offset) {
                     ldmSeqStore->absPositions[ldmSeqStore->pos] += finalSeq.matchLength;
