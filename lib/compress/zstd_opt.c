@@ -739,14 +739,15 @@ U32 ZSTD_insertBtAndGetAllMatches (
         rawSeqStore_t* ldmSeqStore = ms->ldmSeqStore;
         int ldmIndex = ZSTD_ldm_hasMatchAtAbsolutePosition(ldmSeqStore, curr);
         if (ldmIndex >= 0) {
+            ldmSeqStore->pos = ldmIndex;
             possibleLdm = ldmSeqStore->seq[ldmIndex];
             U32 matchLength = possibleLdm.matchLength;
             U32 offset = possibleLdm.offset;
 
             /* We take a conservative approach to including LDMs: longer matches and shorter offsets
-               are ~generally~ better, so we only include an LDM if it satisfies both conditions */
-            if (matchLength >= bestLength && offset <= matches[mnum-1].off) {
-                printf("Using long distance match of length %u at distance %u (offCode=%u)\n",
+               are generally better, so we only include an LDM if it satisfies both conditions */
+            if (matchLength >= bestLength && offset + ZSTD_REP_MOVE <= matches[mnum-1].off) {
+                DEBUGLOG(8, "Using long distance match of length %u at distance %u (offCode=%u)\n",
                         (U32)matchLength, offset, offset + ZSTD_REP_MOVE);
 
                 /* We must account for the seq.litLength bytes that represents the size of the literals block which precedes

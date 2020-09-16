@@ -550,7 +550,7 @@ rawSeq ZSTD_ldm_maybeSplitSequence(rawSeqStore_t* rawSeqStore,
                                    U32 const remaining, U32 const minMatch)
 {
     rawSeq sequence = rawSeqStore->seq[rawSeqStore->pos];
-    printf("ZSTD_ldm_maybeSplitSequence(): (of: %u ml: %u ll: %u) - remaining bytes:%u\n",
+    DEBUGLOG(8, "ZSTD_ldm_maybeSplitSequence(): (of: %u ml: %u ll: %u) - remaining bytes:%u\n",
              sequence.offset, sequence.matchLength,
              sequence.litLength, remaining);
     assert(sequence.offset > 0);
@@ -568,7 +568,7 @@ rawSeq ZSTD_ldm_maybeSplitSequence(rawSeqStore_t* rawSeqStore,
             sequence.offset = 0;
         }
     }
-    printf("ZSTD_ldm_maybeSplitSequence(): after split - (of: %u ml: %u ll: %u)\n",
+    DEBUGLOG(8, "ZSTD_ldm_maybeSplitSequence(): after split - (of: %u ml: %u ll: %u)\n",
              sequence.offset, sequence.matchLength,
              sequence.litLength);
     /* Skip past `remaining` bytes for the future sequences. */
