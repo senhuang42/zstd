@@ -734,7 +734,7 @@ U32 ZSTD_insertBtAndGetAllMatches (
     }
 
     /* Handle long distance matches if applicable. */
-    if (ms->ldmSeqStore && ms->ldmSeqStore->size > 0) {
+    if (mnum > 0 && ms->ldmSeqStore && ms->ldmSeqStore->size > 0) {
         rawSeq possibleLdm;
         rawSeqStore_t* ldmSeqStore = ms->ldmSeqStore;
         int ldmIndex = ZSTD_ldm_hasMatchAtAbsolutePosition(ldmSeqStore, curr);
@@ -753,7 +753,7 @@ U32 ZSTD_insertBtAndGetAllMatches (
                 /* We must account for the seq.litLength bytes that represents the size of the literals block which precedes
                  * the actual LDM. We do so by incrementing remaining by litLength.
                  */
-                U32 remainingBytes = (U32)(iLimit - ip + ldmSeqStore->seq[ldmSeqStore->pos].litLength);
+                U32 remainingBytes = (U32)(iLimit - ip + ldmSeqStore->seq[ldmIndex].litLength);
                 rawSeq finalSeq = ZSTD_ldm_maybeSplitSequence(ldmSeqStore, remainingBytes, minMatch); 
 
                 /* The absolute position of the second half of the split should be equal to the
