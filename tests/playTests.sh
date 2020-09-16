@@ -1187,6 +1187,7 @@ roundTripTest -g1000K "1 --single-thread --long"
 roundTripTest -g517K "6 --single-thread --long"
 roundTripTest -g516K "16 --single-thread --long"
 roundTripTest -g518K "19 --single-thread --long"
+roundTripTest -g2M "22 --single-thread --ultra --long"
 fileRoundTripTest -g5M "3 --single-thread --long"
 
 
@@ -1314,6 +1315,28 @@ roundTripTest -g1M -P50 "1 --single-thread --long=29" " --long=28 --memory=512MB
 roundTripTest -g1M -P50 "1 --single-thread --long=29" " --zstd=wlog=28 --memory=512MB"
 
 
+println "\n===>  zstd long distance matching with optimal parser compressed size tests "
+optCSize16=$(datagen -g511K | zstd -16 -c | wc -c)
+longCSize16=$(datagen -g511K | zstd -16 --long -c | wc -c)
+optCSize19=$(datagen -g5M | zstd -19 -c | wc -c)
+longCSize19=$(datagen -g5M | zstd -19 --long -c | wc -c)
+optCSize19wlog28=$(datagen -g5M | zstd -19 -c  --zstd=wlog=28| wc -c)
+longCSize19wlog28=$(datagen -g5M | zstd -19 --long=28 -c | wc -c)
+optCSize22=$(datagen -g900K | zstd -22 --ultra -c | wc -c)
+longCSize22=$(datagen -g900K | zstd -22 --ultra --long -c | wc -c)
+if [ "$longCSize16" -gt "$optCSize16" ]; then
+    echo using --long on compression level 16 should not cause compressed size regression
+    exit 1
+elif [ "$longCSize19" -gt "$optCSize19" ]; then
+    echo using --long on compression level 19 should not cause compressed size regression
+    exit 1
+elif [ "$longCSize19wlog28" -gt "$optCSize19wlog28" ]; then
+    echo using --long on compression level 19 with wLog=28 should not cause compressed size regression
+    exit 1
+elif [ "$longCSize22" -gt "$optCSize22" ]; then
+    echo using --long on compression level 22 should not cause compressed size regression
+    exit 1
+fi
 
 
 if [ "$1" != "--test-large-data" ]; then

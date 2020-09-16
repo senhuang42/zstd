@@ -533,8 +533,8 @@ void ZSTD_ldm_skipSequences(rawSeqStore_t* rawSeqStore, size_t srcSize, U32 cons
 
 
 int ZSTD_ldm_hasMatchAtAbsolutePosition(rawSeqStore_t* ldmSeqStore, U32 targetPos) {
-    if (ldmSeqStore->size < 15) {
-        int i = 0;
+    if (ldmSeqStore->size < 15  /* Cutoff for using linear instead of binary search */) {
+        size_t i = 0;
         for (; i < ldmSeqStore->size; ++i) {
             size_t absPos = ldmSeqStore->absPositions[i];
             if (absPos == targetPos) {
@@ -546,7 +546,6 @@ int ZSTD_ldm_hasMatchAtAbsolutePosition(rawSeqStore_t* ldmSeqStore, U32 targetPo
             }
         }
     } else {
-        /* Use binary search for larger ldmSeqStores */
         int lower = 0;
         int upper = (int)ldmSeqStore->size-1;
         while (lower <= upper) {
