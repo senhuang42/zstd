@@ -82,13 +82,13 @@ typedef struct {
 } ZSTD_entropyCTables_t;
 
 typedef struct {
-    U32 off;
-    U32 len;
+    U32 off;    /* OffCode of the match (offset + ZSTD_REP_MOVE) */
+    U32 len;    /* Length of the match */
 } ZSTD_match_t;
 
 typedef struct {
-    int price;
-    U32 off;
+    int price;  /* Heuristic representing how good a match is - lower is better */
+    U32 off;    /* OffCode of the match (offset + ZSTD_REP_MOVE) */
     U32 mlen;
     U32 litlen;
     U32 rep[ZSTD_REP_NUM];
@@ -133,7 +133,7 @@ typedef struct {
 
 typedef struct {
     U32 offset;
-    U32 litLength;
+    U32 litLength;  /* In an LDM, represents size of the literal block preceding the match */
     U32 matchLength;
 } rawSeq;
 
