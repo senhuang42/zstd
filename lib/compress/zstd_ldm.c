@@ -531,16 +531,37 @@ void ZSTD_ldm_skipSequences(rawSeqStore_t* rawSeqStore, size_t srcSize, U32 cons
     }
 }
 
+
 int ZSTD_ldm_hasMatchAtAbsolutePosition(rawSeqStore_t* ldmSeqStore, U32 targetPos) {
-    size_t i = ldmSeqStore->pos;
-    for (; i < ldmSeqStore->size; ++i) {
-        size_t absPos = ldmSeqStore->absPositions[i];
-        if (absPos == targetPos) {
-            DEBUGLOG(8, "ZSTD_ldm_hasMatchAtAbsolutePosition(): long distance match exists at %u with: (ol: %d ml: %d)\n",
-                     targetPos,
-                     ldmSeqStore->seq[i].offset,
-                     ldmSeqStore->seq[i].matchLength);
-            return i;
+    if (ldmSeqStore->size < 20) {
+        int i = 0;
+        for (; i < ldmSeqStore->size; ++i) {
+            size_t absPos = ldmSeqStore->absPositions[i];
+            if (absPos == targetPos) {
+                DEBUGLOG(8, "ZSTD_ldm_hasMatchAtAbsolutePosition(): long distance match exists at %u with: (ol: %d ml: %d)\n",
+                        targetPos,
+                        ldmSeqStore->seq[i].offset,
+                        ldmSeqStore->seq[i].matchLength);
+                return i;
+            }
+        }
+    } else {
+        /* Use binary search for larger ldmSeqStores */
+        int lower = 0;
+        int upper = (int)ldmSeqStore->size-1;
+        while (lower <= upper) {
+            int midpoint = lower + (upper - lower) / 2;
+            if (ldmSeqStore->absPositions[midpoint] > targetPos) {
+                upper = midpoint - 1;
+            } else if (ldmSeqStore->absPositions[midpoint] < targetPos) {
+                lower = midpoint + 1;
+            } else {
+                DEBUGLOG(8, "ZSTD_ldm_hasMatchAtAbsolutePosition(): long distance match exists at %u with: (ol: %d ml: %d)\n",
+                        targetPos,
+                        ldmSeqStore->seq[i].offset,
+                        ldmSeqStore->seq[i].matchLength);
+                return midpoint;
+            }
         }
     }
     return -1;
