@@ -533,7 +533,7 @@ void ZSTD_ldm_skipSequences(rawSeqStore_t* rawSeqStore, size_t srcSize, U32 cons
 
 
 int ZSTD_ldm_hasMatchAtAbsolutePosition(rawSeqStore_t* ldmSeqStore, U32 targetPos) {
-    if (ldmSeqStore->size < 20) {
+    if (ldmSeqStore->size < 15) {
         int i = 0;
         for (; i < ldmSeqStore->size; ++i) {
             size_t absPos = ldmSeqStore->absPositions[i];
