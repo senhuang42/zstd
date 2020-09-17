@@ -2328,11 +2328,11 @@ static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
             for (i = 0; i < ZSTD_REP_NUM; ++i)
                 zc->blockState.nextCBlock->rep[i] = zc->blockState.prevCBlock->rep[i];
         }
-        if (zc->externSeqStore.pos < zc->externSeqStore.size) {
+        if (zc->externSeqStore.pos < zc->externSeqStore.size) { /* is true during multithreaded compression */
             assert(!zc->appliedParams.ldmParams.enableLdm);
             /* Updates ldmSeqStore.pos */
             ms->ldmSeqStore = &zc->externSeqStore;
-            ZSTD_createRawSequencesAbsolutePositions(ms->ldmSeqStore);
+
             lastLLSize =
                 ZSTD_ldm_blockCompress(&zc->externSeqStore,
                                        ms, &zc->seqStore,
@@ -2340,7 +2340,7 @@ static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
                                        src, srcSize);
             assert(zc->externSeqStore.pos <= zc->externSeqStore.size);
         } else if (zc->appliedParams.ldmParams.enableLdm) {
-            rawSeqStore_t ldmSeqStore = {NULL, NULL, 0, 0, 0};
+            rawSeqStore_t ldmSeqStore = {NULL, 0, 0, 0, 0};
 
             ldmSeqStore.seq = zc->ldmSequences;
             ldmSeqStore.capacity = zc->maxNbLdmSequences;
@@ -2349,7 +2349,6 @@ static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
                                                &zc->appliedParams.ldmParams,
                                                src, srcSize), "");
             ms->ldmSeqStore = &ldmSeqStore;
-            ZSTD_createRawSequencesAbsolutePositions(ms->ldmSeqStore);
 
             /* Updates ldmSeqStore.pos */
             lastLLSize =
@@ -2770,7 +2769,7 @@ size_t ZSTD_writeLastEmptyBlock(void* dst, size_t dstCapacity)
         return ZSTD_blockHeaderSize;
     }
 }
-
+/*
 int ZSTD_createRawSequencesAbsolutePositions(rawSeqStore_t* rawSeqStore) {
     size_t currPos = 1;
     size_t idx = 0;
@@ -2788,7 +2787,7 @@ int ZSTD_createRawSequencesAbsolutePositions(rawSeqStore_t* rawSeqStore) {
         currPos += currLdm.matchLength;
     }
     return 0;
-}
+}*/
 
 size_t ZSTD_referenceExternalSequences(ZSTD_CCtx* cctx, rawSeq* seq, size_t nbSeq)
 {
@@ -2801,6 +2800,7 @@ size_t ZSTD_referenceExternalSequences(ZSTD_CCtx* cctx, rawSeq* seq, size_t nbSe
     cctx->externSeqStore.size = nbSeq;
     cctx->externSeqStore.capacity = nbSeq;
     cctx->externSeqStore.pos = 0;
+    cctx->externSeqStore.bytesDiscarded = 0;
     return 0;
 }
 
