@@ -142,7 +142,7 @@ typedef struct {
   size_t pos;               /* The position where reading stopped. <= size. */
   size_t size;              /* The number of sequences. <= capacity. */
   size_t capacity;          /* The capacity starting from `seq` pointer */
-  size_t bytesSplit;        /* The number of bytes discarded as a result of sequences split across block boundaries */
+  size_t bytesRead;        /* The number of bytes discarded as a result of sequences split across block boundaries */
 } rawSeqStore_t;
 
 typedef struct ZSTD_matchState_t ZSTD_matchState_t;

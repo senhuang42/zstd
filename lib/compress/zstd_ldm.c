@@ -533,7 +533,7 @@ void ZSTD_ldm_skipSequences(rawSeqStore_t* rawSeqStore, size_t srcSize, U32 cons
 
 int ZSTD_ldm_hasMatchAtAbsolutePosition(rawSeqStore_t* ldmSeqStore, U32 targetPos) {
     size_t idx = ldmSeqStore->pos;
-    U32 currPos = 1 + ldmSeqStore->bytesSplit;  /* account for number of bytes discarded by splits */
+    U32 currPos = 1 + ldmSeqStore->bytesRead;  /* account for number of bytes discarded by splits */
     for (; idx < ldmSeqStore->size && currPos < targetPos; ++idx) {
         rawSeq currLdm = ldmSeqStore->seq[idx];
         currPos += currLdm.litLength;
@@ -600,6 +600,7 @@ size_t ZSTD_ldm_blockCompress(rawSeqStore_t* rawSeqStore,
      * in between the long matches
      */
     if (cParams->strategy >= ZSTD_btopt) {
+        ms->ldmSeqStore = rawSeqStore;
         return blockCompressor(ms, seqStore, rep, src, srcSize);
     }
 

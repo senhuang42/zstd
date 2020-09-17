@@ -2348,7 +2348,6 @@ static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
             FORWARD_IF_ERROR(ZSTD_ldm_generateSequences(&zc->ldmState, &ldmSeqStore,
                                                &zc->appliedParams.ldmParams,
                                                src, srcSize), "");
-            ms->ldmSeqStore = &ldmSeqStore;
 
             /* Updates ldmSeqStore.pos */
             lastLLSize =
@@ -2781,7 +2780,7 @@ size_t ZSTD_referenceExternalSequences(ZSTD_CCtx* cctx, rawSeq* seq, size_t nbSe
     cctx->externSeqStore.size = nbSeq;
     cctx->externSeqStore.capacity = nbSeq;
     cctx->externSeqStore.pos = 0;
-    cctx->externSeqStore.bytesSplit = 0;
+    cctx->externSeqStore.bytesRead = 0;
     return 0;
 }
 

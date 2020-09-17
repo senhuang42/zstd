@@ -505,6 +505,25 @@ void ZSTD_updateTree(ZSTD_matchState_t* ms, const BYTE* ip, const BYTE* iend) {
     ZSTD_updateTree_internal(ms, ip, iend, ms->cParams.minMatch, ZSTD_noDict);
 }
 
+
+static void printSeqStore(rawSeqStore_t* rawSeqStore) {
+    printf("rawSeqStore: pos: %zu, bytesRead: %zu\n", rawSeqStore->pos, rawSeqStore->bytesRead);
+    U32 pos = 1;
+    for (int i = 0; i < rawSeqStore->size; ++i) {
+        pos += rawSeqStore->seq[i].litLength;
+        printf("abs: %u (of:%u ml:%u ll: %u)\n", pos, rawSeqStore->seq[i].offset, rawSeqStore->seq[i].matchLength, rawSeqStore->seq[i].litLength);
+        pos += rawSeqStore->seq[i].matchLength;
+    }
+}
+
+static void printMatches(ZSTD_match_t* matches, U32 mnum) {
+    printf("curr matches: ");
+    for (int i = 0; i < mnum; ++i) {
+        printf("(of: %u ml: %u) ", matches[i].off, matches[i].len);
+    }
+    printf("\n");
+}
+
 FORCE_INLINE_TEMPLATE
 U32 ZSTD_insertBtAndGetAllMatches (
                     ZSTD_match_t* matches,   /* store result (found matches) in this table (presumed large enough) */
@@ -742,17 +761,32 @@ U32 ZSTD_insertBtAndGetAllMatches (
         rawSeqStore_t* ldmSeqStore = ms->ldmSeqStore;
         int ldmIndex = ZSTD_ldm_hasMatchAtAbsolutePosition(ldmSeqStore, curr);
         if (ldmIndex >= 0) {
+            printf("---NEW MATCH found at: %u---\n", curr);
+            printMatches(matches, mnum);
             rawSeq possibleLdm = ldmSeqStore->seq[ldmIndex];
             U32 matchLength = possibleLdm.matchLength;
             U32 offset = possibleLdm.offset;
 
+            /*if (ldmSeqStore->pos != ldmIndex) {
+                printf("ADJUSTING... pos: %u idx: %u\n", ldmSeqStore->pos, ldmIndex);
+                while (1) {
+                    ldmSeqStore->bytesRead += ldmSeqStore->seq[ldmSeqStore->pos].litLength;
+                    ldmSeqStore->pos++;
+                    if (ldmSeqStore->pos == ldmIndex)
+                        break;
+                    ldmSeqStore->bytesRead += ldmSeqStore->seq[ldmSeqStore->pos].matchLength;
+                }
+            }*/
             /* needed for ZSTD_ldm_maybeSplitSequence() to split the correct seq */
-            ldmSeqStore->pos = ldmIndex;    
+            printf("ldmseqstore: pos: %u foundIdx: %u bytesread:%u\n", ldmSeqStore->pos, ldmIndex, ldmSeqStore->bytesRead);
+            ldmSeqStore->pos = ldmIndex;
+            ldmSeqStore->bytesRead = curr - 1;
+            printf("ldmseqstore: bytesread updated to: %u \n", ldmSeqStore->bytesRead);
 
             /* TODO: as followup, also insert matches that are shorter than bestLength, but with smaller offset */
             if (matchLength >= bestLength) {
-                DEBUGLOG(8, "Adding ldm candidate of length %u at distance %u (offCode=%u)\n",
-                         matchLength, offset, offset + ZSTD_REP_MOVE);
+                printf("Before splitting:\n");
+                printSeqStore(ldmSeqStore);
                 /* We must account for the seq->litLength bytes that represents the size of the literals block which precedes
                  * the actual LDM, since ZSTD_ldm_maybeSplitSequence() counts "remaining" from the beginning of block of LDM literals.
                  */
@@ -762,23 +796,25 @@ U32 ZSTD_insertBtAndGetAllMatches (
                  */
                 rawSeq finalSeq = ZSTD_ldm_maybeSplitSequence(ldmSeqStore, remainingBytes, minMatch); 
                 if (ldmSeqStore->pos != ldmIndex) {     /* no sequence split */
-                    ldmSeqStore->bytesSplit += finalSeq.matchLength + finalSeq.litLength;
+                    printf("NO SPLIT, ");
+                    ldmSeqStore->bytesRead += finalSeq.matchLength;
                 } else {
-                    if (finalSeq.matchLength != possibleLdm.matchLength) {
-                        ldmSeqStore->bytesSplit += finalSeq.matchLength;
-                    }
-                    if (finalSeq.litLength != possibleLdm.litLength) {
-                        ldmSeqStore->bytesSplit += finalSeq.litLength;
-                    }
+                    printf("YES split");
+                    printSeqStore(ldmSeqStore);
+                    ldmSeqStore->bytesRead += finalSeq.matchLength;
+                    ldmSeqStore->bytesRead += finalSeq.litLength;
                 }
 
                 /* Append the (possibly split) LDM to the end of our match candidates
                  * signifying that it's the "best" candidate */
                 matchLength = finalSeq.matchLength;
                 offset = finalSeq.offset;
+                printf("Adding ldm candidate of length %u at distance %u (offCode=%u)\n",
+                         matchLength, offset, offset + ZSTD_REP_MOVE);
                 matches[mnum].off = offset + ZSTD_REP_MOVE;
                 matches[mnum].len = (U32)matchLength;
                 mnum++;
+                printMatches(matches, mnum);
             }
         }
     }
