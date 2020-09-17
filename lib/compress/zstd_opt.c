@@ -750,7 +750,7 @@ U32 ZSTD_insertBtAndGetAllMatches (
 
             /* longer matches and shorter offsets are generally better, so we only include
              * an LDM candidate match if it satisfies both conditions TODO: Support more advanced cases*/
-            if (matchLength >= matches[mnum-1].len && offset + ZSTD_REP_MOVE <= matches[mnum-1].off) {
+            if (matchLength >= matches[mnum-1].len) {
                 DEBUGLOG(8, "Using long distance match of length %u at distance %u (offCode=%u)\n",
                          matchLength, offset, offset + ZSTD_REP_MOVE);
 
@@ -764,14 +764,14 @@ U32 ZSTD_insertBtAndGetAllMatches (
                  */
                 rawSeq finalSeq = ZSTD_ldm_maybeSplitSequence(ldmSeqStore, remainingBytes, minMatch); 
 
-                /* To ensure that we can still calculate absolute positions, we must keep bytesDiscarded
+                /* To ensure that we can still calculate absolute positions, we must keep bytesSplit
                  * up to date, depending on how the match was split.
                  */
                 if (finalSeq.matchLength != possibleLdm.matchLength) {
-                    ldmSeqStore->bytesDiscarded += finalSeq.matchLength;
+                    ldmSeqStore->bytesSplit += finalSeq.matchLength;
                 }
                 if (finalSeq.litLength != possibleLdm.litLength) {
-                    ldmSeqStore->bytesDiscarded += finalSeq.litLength;
+                    ldmSeqStore->bytesSplit += finalSeq.litLength;
                 }
 
                 /* Append the (possibly split) LDM to the end of our match candidates

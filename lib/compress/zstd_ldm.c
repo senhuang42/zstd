@@ -533,7 +533,7 @@ void ZSTD_ldm_skipSequences(rawSeqStore_t* rawSeqStore, size_t srcSize, U32 cons
 
 int ZSTD_ldm_hasMatchAtAbsolutePosition(rawSeqStore_t* ldmSeqStore, U32 targetPos) {
     size_t idx = 0;
-    U32 currPos = 1 + ldmSeqStore->bytesDiscarded;  /* account for number of bytes discarded by splits */
+    U32 currPos = 1 + ldmSeqStore->bytesSplit;  /* account for number of bytes discarded by splits */
     for (; idx < ldmSeqStore->size && currPos < targetPos; ++idx) {
         rawSeq currLdm = ldmSeqStore->seq[idx];
         currPos += currLdm.litLength;

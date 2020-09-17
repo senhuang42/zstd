@@ -2781,7 +2781,7 @@ size_t ZSTD_referenceExternalSequences(ZSTD_CCtx* cctx, rawSeq* seq, size_t nbSe
     cctx->externSeqStore.size = nbSeq;
     cctx->externSeqStore.capacity = nbSeq;
     cctx->externSeqStore.pos = 0;
-    cctx->externSeqStore.bytesDiscarded = 0;
+    cctx->externSeqStore.bytesSplit = 0;
     return 0;
 }
 
