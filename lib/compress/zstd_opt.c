@@ -739,20 +739,20 @@ U32 ZSTD_insertBtAndGetAllMatches (
 
     /* Handle long distance matches if applicable. */
     if (mnum > 0 && ms->ldmSeqStore && ms->ldmSeqStore->size > 0) {
-        rawSeq possibleLdm;
         rawSeqStore_t* ldmSeqStore = ms->ldmSeqStore;
         int ldmIndex = ZSTD_ldm_hasMatchAtAbsolutePosition(ldmSeqStore, curr);
         if (ldmIndex >= 0) {
-            ldmSeqStore->pos = ldmIndex;    /* needed for ZSTD_ldm_maybeSplitSequence() to split the correct seq */
-            possibleLdm = ldmSeqStore->seq[ldmIndex];
+            rawSeq possibleLdm = ldmSeqStore->seq[ldmIndex];
             U32 matchLength = possibleLdm.matchLength;
             U32 offset = possibleLdm.offset;
 
+            ldmSeqStore->pos = ldmIndex;    /* needed for ZSTD_ldm_maybeSplitSequence() to split the correct seq */
+
             /* longer matches and shorter offsets are generally better, so we only include
-             * an LDM candidate match if it satisfies both conditions */
+             * an LDM candidate match if it satisfies both conditions TODO: Support more advanced cases*/
             if (matchLength >= matches[mnum-1].len && offset + ZSTD_REP_MOVE <= matches[mnum-1].off) {
                 DEBUGLOG(8, "Using long distance match of length %u at distance %u (offCode=%u)\n",
-                        (U32)matchLength, offset, offset + ZSTD_REP_MOVE);
+                         matchLength, offset, offset + ZSTD_REP_MOVE);
 
                 /* We must account for the seq->litLength bytes that represents the size of the literals block which precedes
                  * the actual LDM, since ZSTD_ldm_maybeSplitSequence() counts "remaining" from the beginning of block of LDM literals.
@@ -774,14 +774,13 @@ U32 ZSTD_insertBtAndGetAllMatches (
                     ldmSeqStore->bytesDiscarded += finalSeq.litLength;
                 }
 
-                /* Append the (possibly split) LDM to the end of our match candidates, signifying that it's the "best" candidate */
+                /* Append the (possibly split) LDM to the end of our match candidates
+                 * signifying that it's the "best" candidate */
                 matchLength = finalSeq.matchLength;
                 offset = finalSeq.offset;
-                if (matchLength >= matches[mnum-1].len && offset + ZSTD_REP_MOVE <= matches[mnum-1].off) {
-                    matches[mnum].off = offset + ZSTD_REP_MOVE;
-                    matches[mnum].len = (U32)matchLength;
-                    mnum++;
-                }
+                matches[mnum].off = offset + ZSTD_REP_MOVE;
+                matches[mnum].len = (U32)matchLength;
+                mnum++;
             }
         }
     }

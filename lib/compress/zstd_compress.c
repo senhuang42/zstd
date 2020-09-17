@@ -2769,25 +2769,6 @@ size_t ZSTD_writeLastEmptyBlock(void* dst, size_t dstCapacity)
         return ZSTD_blockHeaderSize;
     }
 }
-/*
-int ZSTD_createRawSequencesAbsolutePositions(rawSeqStore_t* rawSeqStore) {
-    size_t currPos = 1;
-    size_t idx = 0;
-    if (rawSeqStore->absPositions) {
-        return 1;
-    }
-    DEBUGLOG(8, "ZSTD_createRawSequencesAbsolutePositions()");
-    rawSeqStore->absPositions = ZSTD_customMalloc(sizeof(size_t)*rawSeqStore->size, ZSTD_defaultCMem);
-    for (; idx < rawSeqStore->size; ++idx) {
-        rawSeq currLdm = rawSeqStore->seq[idx];
-        currPos += currLdm.litLength;
-        rawSeqStore->absPositions[idx] = currPos;
-        DEBUGLOG(8, "pos: %zu - (of: %u ml: %u ll: %u)",
-                 currPos, currLdm.offset, currLdm.matchLength, currLdm.litLength);
-        currPos += currLdm.matchLength;
-    }
-    return 0;
-}*/
 
 size_t ZSTD_referenceExternalSequences(ZSTD_CCtx* cctx, rawSeq* seq, size_t nbSeq)
 {
