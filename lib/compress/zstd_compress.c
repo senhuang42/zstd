@@ -2331,8 +2331,6 @@ static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
         if (zc->externSeqStore.pos < zc->externSeqStore.size) { /* is true during multithreaded compression */
             assert(!zc->appliedParams.ldmParams.enableLdm);
             /* Updates ldmSeqStore.pos */
-            ms->ldmSeqStore = &zc->externSeqStore;
-
             lastLLSize =
                 ZSTD_ldm_blockCompress(&zc->externSeqStore,
                                        ms, &zc->seqStore,
@@ -2348,7 +2346,6 @@ static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
             FORWARD_IF_ERROR(ZSTD_ldm_generateSequences(&zc->ldmState, &ldmSeqStore,
                                                &zc->appliedParams.ldmParams,
                                                src, srcSize), "");
-
             /* Updates ldmSeqStore.pos */
             lastLLSize =
                 ZSTD_ldm_blockCompress(&ldmSeqStore,

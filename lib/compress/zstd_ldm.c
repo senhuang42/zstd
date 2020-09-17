@@ -533,8 +533,8 @@ void ZSTD_ldm_skipSequences(rawSeqStore_t* rawSeqStore, size_t srcSize, U32 cons
 
 int ZSTD_ldm_hasMatchAtAbsolutePosition(rawSeqStore_t* ldmSeqStore, U32 targetPos) {
     size_t idx = ldmSeqStore->pos;
-    U32 currPos = 1 + ldmSeqStore->bytesRead;  /* account for number of bytes discarded by splits */
-    for (; idx < ldmSeqStore->size && currPos < targetPos; ++idx) {
+    U32 currPos = 1 + ldmSeqStore->bytesRead;
+    for (; idx < ldmSeqStore->size && currPos <= targetPos; ++idx) {
         rawSeq currLdm = ldmSeqStore->seq[idx];
         currPos += currLdm.litLength;
         if (targetPos == currPos) {
@@ -550,7 +550,7 @@ rawSeq ZSTD_ldm_maybeSplitSequence(rawSeqStore_t* rawSeqStore,
                                    U32 const remaining, U32 const minMatch)
 {
     rawSeq sequence = rawSeqStore->seq[rawSeqStore->pos];
-    DEBUGLOG(8, "ZSTD_ldm_maybeSplitSequence(): (of: %u ml: %u ll: %u) - remaining bytes:%u\n",
+    printf("ZSTD_ldm_maybeSplitSequence(): (of: %u ml: %u ll: %u) - remaining bytes:%u\n",
              sequence.offset, sequence.matchLength,
              sequence.litLength, remaining);
     assert(sequence.offset > 0);
@@ -568,7 +568,7 @@ rawSeq ZSTD_ldm_maybeSplitSequence(rawSeqStore_t* rawSeqStore,
             sequence.offset = 0;
         }
     }
-    DEBUGLOG(8, "ZSTD_ldm_maybeSplitSequence(): after split - (of: %u ml: %u ll: %u)\n",
+    printf("ZSTD_ldm_maybeSplitSequence(): after split - (of: %u ml: %u ll: %u)\n",
              sequence.offset, sequence.matchLength,
              sequence.litLength);
     /* Skip past `remaining` bytes for the future sequences. */
@@ -600,6 +600,7 @@ size_t ZSTD_ldm_blockCompress(rawSeqStore_t* rawSeqStore,
      * in between the long matches
      */
     if (cParams->strategy >= ZSTD_btopt) {
+        /* TODO: This is not sufficient if rawSeqStore was allocated in the stack */
         ms->ldmSeqStore = rawSeqStore;
         return blockCompressor(ms, seqStore, rep, src, srcSize);
     }
