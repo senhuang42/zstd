@@ -562,6 +562,22 @@ static rawSeq maybeSplitSequence(rawSeqStore_t* rawSeqStore,
     return sequence;
 }
 
+/**
+ * Converts the elements of a rawSeqStore into a series of ranges representing
+ * the beginning and end of a match. We store the start of a match in "litLength"
+ * and end of a match in "matchLength". So a rawSeqStore containing:
+ * (litLength: 1000, matchLength: 500)
+ * (litLength: 2000, matchLength: 1000)
+ * (litLength: 4000, matchLength: 1000)
+ * would be converted into:
+ * (matchStart: 1000, matchEnd: 3500)
+ * (matchStart: 3500, matchEnd: 4500)
+ * (matchStart: 8500, matchEnd: 9500)
+ */
+static void convertSeqStoreToRanges(rawSeqStore_t* rawSeqStore) {
+
+}
+
 size_t ZSTD_ldm_blockCompress(rawSeqStore_t* rawSeqStore,
     ZSTD_matchState_t* ms, seqStore_t* seqStore, U32 rep[ZSTD_REP_NUM],
     void const* src, size_t srcSize)
