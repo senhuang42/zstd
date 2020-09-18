@@ -576,6 +576,15 @@ size_t ZSTD_ldm_blockCompress(rawSeqStore_t* rawSeqStore,
     /* Input positions */
     BYTE const* ip = istart;
 
+    /* If compression strategy uses optimal parser, use LDMs only as candidates
+     * rather than accepting all LDMs and calling regular match finder on literal
+     * blocks in between.
+     */
+    if (cParams->strategy >= ZSTD_btopt) {
+        ms->ldmSeqStore = *rawSeqStore;
+        return blockCompressor(ms, seqStore, rep, src, srcSize);
+    }
+
     DEBUGLOG(5, "ZSTD_ldm_blockCompress: srcSize=%zu", srcSize);
     assert(rawSeqStore->pos <= rawSeqStore->size);
     assert(rawSeqStore->size <= rawSeqStore->capacity);
