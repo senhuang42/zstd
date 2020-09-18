@@ -575,7 +575,18 @@ static rawSeq maybeSplitSequence(rawSeqStore_t* rawSeqStore,
  * (matchStart: 8500, matchEnd: 9500)
  */
 static void convertSeqStoreToRanges(rawSeqStore_t* rawSeqStore) {
-
+    size_t i;
+    size_t currPos = 0;
+    for( ; i < rawSeqStore->size; ++i) {
+        size_t matchStart;
+        size_t matchEnd;
+        currPos += rawSeqStore->seq[i].litLength;
+        matchStart = currPos;
+        currPos += rawSeqStore->seq[i].matchLength;
+        matchEnd = currPos;
+        rawSeqStore->seq[i].litLength = matchStart;
+        rawSeqStore->seq[i].matchLength = matchEnd;
+    }
 }
 
 size_t ZSTD_ldm_blockCompress(rawSeqStore_t* rawSeqStore,
