@@ -569,8 +569,10 @@ static rawSeq maybeSplitSequence(rawSeqStore_t* rawSeqStore,
  * (litLength: 1000, matchLength: 500)
  * (litLength: 2000, matchLength: 1000)
  * (litLength: 4000, matchLength: 1000)
+ * 
  * would be converted into:
- * (matchStart: 1000, matchEnd: 3500)
+ * 
+ * (matchStart: 1000, matchEnd: 1500)
  * (matchStart: 3500, matchEnd: 4500)
  * (matchStart: 8500, matchEnd: 9500)
  */
@@ -608,6 +610,8 @@ size_t ZSTD_ldm_blockCompress(rawSeqStore_t* rawSeqStore,
      * blocks in between.
      */
     if (cParams->strategy >= ZSTD_btopt) {
+        convertSeqStoreToRanges(rawSeqStore);
+        //rawSeqStore->pos = ??? /* represents the startOfLdmSeqStore */
         ms->ldmSeqStore = *rawSeqStore;
         return blockCompressor(ms, seqStore, rep, src, srcSize);
     }

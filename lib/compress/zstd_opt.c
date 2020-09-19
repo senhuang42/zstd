@@ -763,7 +763,17 @@ FORCE_INLINE_TEMPLATE U32 ZSTD_BtGetAllMatches (
     case 6 : return ZSTD_insertBtAndGetAllMatches(matches, ms, nextToUpdate3, ip, iHighLimit, dictMode, rep, ll0, lengthToBeat, 6);
     }
 }
+/*********************************
+*  LDM functions
+*********************************/
 
+static void getNextLdm(U32* ldmStart, U32* ldmEnd, const rawSeqStore_t* const ldmSeqStore,
+                            U32 relativePos, U32 startBlockIdx) {
+    *ldmStart = ldmSeqStore->seq[ldmSeqStore->pos].matchLength;
+    *ldmEnd = ldmSeqStore->seq[ldmSeqStore->pos].litLength;
+
+    /* Handle block splitting */
+}
 
 /*-*******************************
 *  Optimal parser
@@ -813,6 +823,9 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
     U32 const sufficient_len = MIN(cParams->targetLength, ZSTD_OPT_NUM -1);
     U32 const minMatch = (cParams->minMatch == 3) ? 3 : 4;
     U32 nextToUpdate3 = ms->nextToUpdate;
+    U32 const startBlockIdx = (U32)(istart - base);
+    U32 currLdmStart = 0;
+    U32 currLdmEnd = 0;
 
     ZSTD_optimal_t* const opt = optStatePtr->priceTable;
     ZSTD_match_t* const matches = optStatePtr->matchTable;
@@ -832,7 +845,12 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
         /* find first match */
         {   U32 const litlen = (U32)(ip - anchor);
             U32 const ll0 = !litlen;
-            U32 const nbMatches = ZSTD_BtGetAllMatches(matches, ms, &nextToUpdate3, ip, iend, dictMode, rep, ll0, minMatch);
+            U32 nbMatches = ZSTD_BtGetAllMatches(matches, ms, &nextToUpdate3, ip, iend, dictMode, rep, ll0, minMatch);
+            if ((U32)(ip - base) >= currLdmEnd) {
+                getNextLdm(&currLdmStart, &currLdmEnd, &ms->ldmSeqStore,
+                                &ms->ldmSeqStore + (U32)(ip - base), startBlockIdx);
+            }
+
             if (!nbMatches) { ip++; continue; }
 
             /* initialize opt[0] */
