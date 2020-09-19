@@ -959,6 +959,12 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
                 continue;  /* skip unpromising positions; about ~+6% speed, -0.01 ratio */
             }
 
+            {   if ((U32)(inr - base) >= currLdmEnd) {
+                    getNextLdm(&currLdmStart, &currLdmEnd, &ms->ldmSeqStore,
+                               &ms->ldmSeqStore + (U32)(inr - base), startBlockIdx);
+                }
+            }
+
             {   U32 const ll0 = (opt[cur].mlen != 0);
                 U32 const litlen = (opt[cur].mlen == 0) ? opt[cur].litlen : 0;
                 U32 const previousPrice = opt[cur].price;
