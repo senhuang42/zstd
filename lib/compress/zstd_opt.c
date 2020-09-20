@@ -780,8 +780,24 @@ static void getNextLdm(U32* ldmStart, U32* ldmEnd, rawSeqStore_t* ldmSeqStore,
     /* Handle block splitting */
 }
 
-static void maybeAddLdm(ZSTD_match_t* matches, U32* nbMatches, U32* ldmStart, U32* ldmEnd) {
-
+static void maybeAddLdm(const rawSeqStore_t* const ldmSeqStore, ZSTD_match_t* matches,
+                        U32* nbMatches, U32 ldmStart, U32 ldmEnd, U32 current, U32 startBlockIdx) {
+    ldmStart += startBlockIdx;
+    ldmEnd += startBlockIdx;
+    U32 posDifference = current - ldmStart;
+    if (posDifference > 0) {
+        return; /* don't handle extra LDMs for now */
+    }
+    assert(ldmSeqStore->pos > 0);
+    printf("Considering LDM @ current = %u, posDiff = %u - ", current, posDifference);
+    U32 candidateOffset = ldmSeqStore->seq[ldmSeqStore->pos - 1].offset + posDifference;
+    U32 candidateMatchLength = (ldmEnd - ldmStart) - posDifference;
+    printf("adjusted to (of: %u, ml %u)\n", candidateOffset, candidateMatchLength);
+    if (candidateMatchLength >= matches[*nbMatches-1].len) {
+        matches[*nbMatches].len = candidateMatchLength;
+        matches[*nbMatches].off = candidateOffset + ZSTD_REP_MOVE;
+        (*nbMatches)++;
+    }
 }
 
 /*-*******************************
@@ -866,8 +882,8 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
 
             U32 nbMatches = ZSTD_BtGetAllMatches(matches, ms, &nextToUpdate3, ip, iend, dictMode, rep, ll0, minMatch);
             
-            if (current >= currLdmStart + startBlockIdx) {
-                maybeAddLdm(matches, &nbMatches, &currLdmStart, &currLdmEnd);
+            if (ms->ldmSeqStore.size > 0 && current >= currLdmStart + startBlockIdx) {
+                maybeAddLdm(&ms->ldmSeqStore, matches, &nbMatches, currLdmStart, currLdmEnd, current, startBlockIdx);
             }
 
             if (!nbMatches) { ip++; continue; }
@@ -991,8 +1007,8 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
 
                 U32 nbMatches = ZSTD_BtGetAllMatches(matches, ms, &nextToUpdate3, inr, iend, dictMode, opt[cur].rep, ll0, minMatch);
 
-                if (current >= currLdmStart) {
-                    maybeAddLdm(matches, &nbMatches, &currLdmStart, &currLdmEnd);
+                if (ms->ldmSeqStore.size > 0 && current >= currLdmStart + startBlockIdx) {
+                    maybeAddLdm(&ms->ldmSeqStore, matches, &nbMatches, currLdmStart, currLdmEnd, current, startBlockIdx);
                 }
 
                 U32 matchNb;
