@@ -1013,9 +1013,9 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
 
                 U32 nbMatches = ZSTD_BtGetAllMatches(matches, ms, &nextToUpdate3, inr, iend, dictMode, opt[cur].rep, ll0, minMatch);
 
-                if (ms->ldmSeqStore.size > 0 && current >= currLdmStart + startBlockIdx) {
-                    maybeAddLdm(&ms->ldmSeqStore, matches, &nbMatches, currLdmStart, currLdmEnd, current, startBlockIdx);
-                }
+                if (ms->ldmSeqStore.size > 0 && current >= currLdmStart + startBlockIdx && current < currLdmEnd + startBlockIdx) {
+                maybeAddLdm(&ms->ldmSeqStore, matches, &nbMatches, currLdmStart, currLdmEnd, current, startBlockIdx);
+            }
 
                 U32 matchNb;
                 if (!nbMatches) {
