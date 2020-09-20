@@ -785,13 +785,19 @@ static void maybeAddLdm(const rawSeqStore_t* const ldmSeqStore, ZSTD_match_t* ma
     ldmStart += startBlockIdx;
     ldmEnd += startBlockIdx;
     U32 posDifference = current - ldmStart;
-    if (posDifference > 0) {
-        return; /* don't handle extra LDMs for now */
+    U32 originalMatchLength = ldmEnd - ldmStart;
+    if (posDifference >= originalMatchLength) {
+        return;
     }
+
     assert(ldmSeqStore->pos > 0);
     printf("Considering LDM @ current = %u, posDiff = %u - ", current, posDifference);
     U32 candidateOffset = ldmSeqStore->seq[ldmSeqStore->pos - 1].offset + posDifference;
-    U32 candidateMatchLength = (ldmEnd - ldmStart) - posDifference;
+    U32 candidateMatchLength = originalMatchLength - posDifference;
+    if (candidateMatchLength < ZSTD_LDM_MINMATCH_MIN) {
+        printf("too small\n");
+        return;
+    }
     printf("adjusted to (of: %u, ml %u)\n", candidateOffset, candidateMatchLength);
     if (candidateMatchLength >= matches[*nbMatches-1].len) {
         matches[*nbMatches].len = candidateMatchLength;
@@ -882,7 +888,7 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
 
             U32 nbMatches = ZSTD_BtGetAllMatches(matches, ms, &nextToUpdate3, ip, iend, dictMode, rep, ll0, minMatch);
             
-            if (ms->ldmSeqStore.size > 0 && current >= currLdmStart + startBlockIdx) {
+            if (ms->ldmSeqStore.size > 0 && current >= currLdmStart + startBlockIdx && current < currLdmEnd + startBlockIdx) {
                 maybeAddLdm(&ms->ldmSeqStore, matches, &nbMatches, currLdmStart, currLdmEnd, current, startBlockIdx);
             }
 
