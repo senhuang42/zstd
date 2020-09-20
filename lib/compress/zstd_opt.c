@@ -769,15 +769,18 @@ FORCE_INLINE_TEMPLATE U32 ZSTD_BtGetAllMatches (
 
 /* TODO: Increment by SBI */
 static void getNextLdm(U32* ldmStart, U32* ldmEnd, rawSeqStore_t* ldmSeqStore,
-                            U32 relativePos, U32 startBlockIdx) {
+                       const U32 ldmSeqStoreStartPos, U32 currPosInBlock) {
+    if (ldmSeqStore->pos >= ldmSeqStore->size)
+        return;
+    printf("getNextLdm(): start of seqStore: %u, startBlockIdx: %u ", ldmSeqStoreStartPos, currPosInBlock);
     *ldmStart = ldmSeqStore->seq[ldmSeqStore->pos].matchLength;
     *ldmEnd = ldmSeqStore->seq[ldmSeqStore->pos].litLength;
+    printf("-- range: (%u, %u) at pos: %u\n", *ldmStart, *ldmEnd, ldmSeqStore->pos);
     ldmSeqStore->pos++;
-
     /* Handle block splitting */
 }
 
-static void maybeAddLdm(ZSTD_match_t* matches, U32* nbMatches, U328 ldmStart, U32* ldmEnd) {
+static void maybeAddLdm(ZSTD_match_t* matches, U32* nbMatches, U32* ldmStart, U32* ldmEnd) {
 
 }
 
@@ -830,6 +833,7 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
     U32 const minMatch = (cParams->minMatch == 3) ? 3 : 4;
     U32 nextToUpdate3 = ms->nextToUpdate;
     U32 const startBlockIdx = (U32)(istart - base);
+    
     U32 currLdmStart = 0;
     U32 currLdmEnd = 0;
 
@@ -840,6 +844,7 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
     /* init */
     DEBUGLOG(5, "ZSTD_compressBlock_opt_generic: current=%u, prefix=%u, nextToUpdate=%u",
                 (U32)(ip - base), ms->window.dictLimit, ms->nextToUpdate);
+    printf("ZSTD_compressBlock_opt_generic: current=%u, sbi=%u\n", (U32)(ip - base), startBlockIdx);
     assert(optLevel <= 2);
     ZSTD_rescaleFreqs(optStatePtr, (const BYTE*)src, srcSize, optLevel);
     ip += (ip==prefixStart);
@@ -854,14 +859,14 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
             U32 const current = (U32)(ip - base);
 
             /* Fetch next LDM if necessary */
-            if (current >= currLdmEnd) {
+            if (ms->ldmSeqStore.size > 0 && current >= currLdmEnd + startBlockIdx) {
                 getNextLdm(&currLdmStart, &currLdmEnd, &ms->ldmSeqStore,
-                           ms->ldmSeqStore.capacity + current, startBlockIdx);
+                           ms->ldmSeqStore.capacity, startBlockIdx);
             }
 
             U32 nbMatches = ZSTD_BtGetAllMatches(matches, ms, &nextToUpdate3, ip, iend, dictMode, rep, ll0, minMatch);
             
-            if (current >= currLdmStart) {
+            if (current >= currLdmStart + startBlockIdx) {
                 maybeAddLdm(matches, &nbMatches, &currLdmStart, &currLdmEnd);
             }
 
@@ -979,12 +984,12 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
                 U32 const previousPrice = opt[cur].price;
                 U32 const basePrice = previousPrice + ZSTD_litLengthPrice(0, optStatePtr, optLevel);
 
-                if (current >= currLdmEnd) {
+                if (ms->ldmSeqStore.size > 0 && current >= currLdmEnd + startBlockIdx) {
                     getNextLdm(&currLdmStart, &currLdmEnd, &ms->ldmSeqStore,
-                               ms->ldmSeqStore.capacity + current, startBlockIdx);
+                               ms->ldmSeqStore.capacity, (U32)(ip - istart));
                 }
-                
-                U32 const nbMatches = ZSTD_BtGetAllMatches(matches, ms, &nextToUpdate3, inr, iend, dictMode, opt[cur].rep, ll0, minMatch);
+
+                U32 nbMatches = ZSTD_BtGetAllMatches(matches, ms, &nextToUpdate3, inr, iend, dictMode, opt[cur].rep, ll0, minMatch);
 
                 if (current >= currLdmStart) {
                     maybeAddLdm(matches, &nbMatches, &currLdmStart, &currLdmEnd);

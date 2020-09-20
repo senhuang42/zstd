@@ -576,18 +576,27 @@ static rawSeq maybeSplitSequence(rawSeqStore_t* rawSeqStore,
  * (matchStart: 3500, matchEnd: 4500)
  * (matchStart: 8500, matchEnd: 9500)
  */
+
+static void printSeqStore(rawSeqStore_t* rawSeqStore) {
+    printf("rawSeqStore: pos: %zu\n", rawSeqStore->pos);
+    for (int i = 0; i < rawSeqStore->size; ++i) {
+        printf("(of:%u ml:%u ll: %u)\n", rawSeqStore->seq[i].offset, rawSeqStore->seq[i].matchLength, rawSeqStore->seq[i].litLength);
+    }
+}
 static void convertSeqStoreToRanges(rawSeqStore_t* rawSeqStore) {
     size_t i;
     size_t currPos = 0;
-    for( ; i < rawSeqStore->size; ++i) {
+    printf("Conversion...\n");
+    for(i = 0 ; i < rawSeqStore->size; ++i) {
         size_t matchStart;
         size_t matchEnd;
         currPos += rawSeqStore->seq[i].litLength;
         matchStart = currPos;
         currPos += rawSeqStore->seq[i].matchLength;
         matchEnd = currPos;
-        rawSeqStore->seq[i].litLength = matchStart;
-        rawSeqStore->seq[i].matchLength = matchEnd;
+        rawSeqStore->seq[i].matchLength = matchStart;
+        rawSeqStore->seq[i].litLength = matchEnd;
+        printf("(%u, %u)\n", matchStart, matchEnd);
     }
 }
 
@@ -610,10 +619,15 @@ size_t ZSTD_ldm_blockCompress(rawSeqStore_t* rawSeqStore,
      * blocks in between.
      */
     if (cParams->strategy >= ZSTD_btopt) {
+        printf("start of this seqstore: %u\n", (U32)(istart - ms->window.base));
+        size_t cLen;
+        printSeqStore(rawSeqStore);
         convertSeqStoreToRanges(rawSeqStore);
+        rawSeqStore->capacity = (U32)(istart - ms->window.base);
         //rawSeqStore->pos = ??? /* represents the startOfLdmSeqStore */
         ms->ldmSeqStore = *rawSeqStore;
-        return blockCompressor(ms, seqStore, rep, src, srcSize);
+        cLen = blockCompressor(ms, seqStore, rep, src, srcSize);
+        return cLen;
     }
 
     DEBUGLOG(5, "ZSTD_ldm_blockCompress: srcSize=%zu", srcSize);
