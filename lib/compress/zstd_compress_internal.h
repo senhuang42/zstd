@@ -142,6 +142,13 @@ typedef struct {
   size_t pos;      /* The position where reading stopped. <= size. */
   size_t size;     /* The number of sequences. <= capacity. */
   size_t capacity; /* The capacity starting from `seq` pointer */
+
+  U32 rangeFlag;   /* If == 1, then members of this rawSeqStore represent different things:
+                    * seq.matchLength == start of a match
+                    * seq.litLength == end of a match
+                    * capacity == reference start index of this ldm seq store
+                    */
+                   
 } rawSeqStore_t;
 
 typedef struct ZSTD_matchState_t ZSTD_matchState_t;

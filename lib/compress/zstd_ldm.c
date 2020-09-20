@@ -587,6 +587,7 @@ static void convertSeqStoreToRanges(rawSeqStore_t* rawSeqStore) {
     size_t i;
     size_t currPos = 0;
     printf("Conversion...\n");
+    rawSeqStore->rangeFlag = 1;
     for(i = 0 ; i < rawSeqStore->size; ++i) {
         size_t matchStart;
         size_t matchEnd;
@@ -619,12 +620,14 @@ size_t ZSTD_ldm_blockCompress(rawSeqStore_t* rawSeqStore,
      * blocks in between.
      */
     if (cParams->strategy >= ZSTD_btopt) {
-        printf("start of this seqstore: %u\n", (U32)(istart - ms->window.base));
+        printf("ldmSeqStore start idx: %u\n", (U32)(istart - ms->window.base));
         size_t cLen;
-        printSeqStore(rawSeqStore);
-        convertSeqStoreToRanges(rawSeqStore);
-        rawSeqStore->capacity = (U32)(istart - ms->window.base);
-        //rawSeqStore->pos = ??? /* represents the startOfLdmSeqStore */
+        if (!(*rawSeqStore).rangeFlag) {
+            /* only convert the rawSeqStore once, in case it spans multiple blocks */
+            printSeqStore(rawSeqStore);
+            convertSeqStoreToRanges(rawSeqStore);   /* sets rangeFlag to true */
+        }
+        (*rawSeqStore).capacity = (U32)(istart - ms->window.base);
         ms->ldmSeqStore = *rawSeqStore;
         cLen = blockCompressor(ms, seqStore, rep, src, srcSize);
         return cLen;
