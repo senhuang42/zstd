@@ -583,9 +583,9 @@ static void printSeqStore(rawSeqStore_t* rawSeqStore) {
         printf("(of:%u ml:%u ll: %u)\n", rawSeqStore->seq[i].offset, rawSeqStore->seq[i].matchLength, rawSeqStore->seq[i].litLength);
     }
 }
-static void convertSeqStoreToRanges(rawSeqStore_t* rawSeqStore) {
+static void convertSeqStoreToRanges(rawSeqStore_t* rawSeqStore, size_t srcSize) {
     size_t i;
-    size_t currPos = 0;
+    size_t currPos = 1;
     printf("Conversion...\n");
     rawSeqStore->rangeFlag = 1;
     for(i = 0 ; i < rawSeqStore->size; ++i) {
@@ -598,6 +598,19 @@ static void convertSeqStoreToRanges(rawSeqStore_t* rawSeqStore) {
         rawSeqStore->seq[i].matchLength = matchStart;
         rawSeqStore->seq[i].litLength = matchEnd;
         printf("(%u, %u)\n", matchStart, matchEnd);
+    }
+    if (rawSeqStore->seq[rawSeqStore->size - 1].litLength >= srcSize) {
+        printf("SETTING RANGEFLAG TO 2\n");
+        rawSeqStore->rangeFlag = 2; /* Signifies that this is a seqstore that spans
+                                           multiple blocks. */
+    }
+}
+
+static void adjustLdmSeqStore(rawSeqStore_t* rawSeqStore, int baseDiff) {
+    size_t i = 0;
+    for (i; i < rawSeqStore->size; ++i) {
+        rawSeqStore->seq[i].matchLength += (size_t)baseDiff;
+        rawSeqStore->seq[i].litLength += (size_t)baseDiff;
     }
 }
 
@@ -622,14 +635,21 @@ size_t ZSTD_ldm_blockCompress(rawSeqStore_t* rawSeqStore,
     if (cParams->strategy >= ZSTD_btopt) {
         printf("ldmSeqStore start idx: %u\n", (U32)(istart - ms->window.base));
         size_t cLen;
-        if (!(*rawSeqStore).rangeFlag) {
+        if ((*rawSeqStore).rangeFlag == 0) {
             /* only convert the rawSeqStore once, in case it spans multiple blocks */
             printSeqStore(rawSeqStore);
-            convertSeqStoreToRanges(rawSeqStore);   /* sets rangeFlag to true */
+            convertSeqStoreToRanges(rawSeqStore, srcSize);   /* sets rangeFlag to true */
         }
         (*rawSeqStore).capacity = (U32)(istart - ms->window.base);
+        const BYTE* const prevBase = (BYTE const*)ms->window.base;
         ms->ldmSeqStore = *rawSeqStore;
         cLen = blockCompressor(ms, seqStore, rep, src, srcSize);
+        if (prevBase != ms->window.base) {
+            int baseDiff = (int)(prevBase - ms->window.base);
+            printf("Bases were different, adjusting, diff = %d\n", baseDiff);
+            adjustLdmSeqStore(rawSeqStore, baseDiff);
+            printSeqStore(rawSeqStore);
+        }
         return cLen;
     }
 

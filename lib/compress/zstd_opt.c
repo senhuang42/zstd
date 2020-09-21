@@ -769,28 +769,69 @@ FORCE_INLINE_TEMPLATE U32 ZSTD_BtGetAllMatches (
 
 /* TODO: Increment by SBI */
 static void getNextLdm(U32* ldmStart, U32* ldmEnd, rawSeqStore_t* ldmSeqStore,
-                       const U32 ldmSeqStoreStartPos, U32 currPosInBlock) {
-    if (ldmSeqStore->pos >= ldmSeqStore->size)
+                       const U32 ldmSeqStoreStartPos, U32 currPosInBlock, U32 current, U32 startBlockIdx) {
+    if (ldmSeqStore->pos >= ldmSeqStore->size ||
+        ldmSeqStore->size == 0 || ldmSeqStore->rangeFlag == 0) 
         return;
-    printf("getNextLdm(): start of seqStore: %u, startBlockIdx: %u ", ldmSeqStoreStartPos, currPosInBlock);
-    *ldmStart = ldmSeqStore->seq[ldmSeqStore->pos].matchLength;
-    *ldmEnd = ldmSeqStore->seq[ldmSeqStore->pos].litLength;
+
+    if (ldmSeqStore->rangeFlag == 2) {
+        if (current >= *ldmEnd) {
+            printf("Getting next ldm: current: %u and currLdmEnd + sbi - 1: %u\n", current, *ldmEnd + startBlockIdx - 1);
+            *ldmStart = ldmSeqStore->seq[ldmSeqStore->pos].matchLength;
+            *ldmEnd = ldmSeqStore->seq[ldmSeqStore->pos].litLength;
+            printf("Final range after adjusting for absolute ldm seq store: (%u, %u)\n", *ldmStart, *ldmEnd);
+        } else {
+            return;
+        }
+    } else {
+        if (current >= *ldmEnd + startBlockIdx - 1) {
+            printf("Getting next ldm: current: %u and currLdmEnd + sbi - 1: %u\n", current, *ldmEnd + startBlockIdx - 1);
+            *ldmStart = ldmSeqStore->seq[ldmSeqStore->pos].matchLength;
+            *ldmEnd = ldmSeqStore->seq[ldmSeqStore->pos].litLength;
+            printf("Final range: (%u, %u) at pos: %u\n", *ldmStart, *ldmEnd, ldmSeqStore->pos);
+        } else {
+            return;
+        }
+    }
+
+   
+    printf("getNextLdm(): start of seqStore: %u, currPosInBlock: %u ", ldmSeqStoreStartPos, currPosInBlock);
     printf("-- range: (%u, %u) at pos: %u\n", *ldmStart, *ldmEnd, ldmSeqStore->pos);
     ldmSeqStore->pos++;
+
     /* Handle block splitting */
 }
 
 static void maybeAddLdm(const rawSeqStore_t* const ldmSeqStore, ZSTD_match_t* matches,
                         U32* nbMatches, U32 ldmStart, U32 ldmEnd, U32 current, U32 startBlockIdx) {
-    ldmStart += startBlockIdx;
-    ldmEnd += startBlockIdx;
+    if (ldmSeqStore->size == 0)
+        return;
+    if (ldmSeqStore->rangeFlag == 1) {
+        if (!(current >= ldmStart + startBlockIdx - 1) || !(current < ldmEnd + startBlockIdx - 1))
+            return;
+    } else if (ldmSeqStore->rangeFlag == 2) {
+        if (!(current >= ldmStart) || !(current < ldmEnd))
+            return;
+    }
+    printf("About to maybe add an ldm...\n");
+
+    if (ldmSeqStore->rangeFlag == 1) {
+        ldmStart += startBlockIdx - 1;
+        ldmEnd += startBlockIdx - 1;
+    }
+
     U32 posDifference = current - ldmStart;
     U32 originalMatchLength = ldmEnd - ldmStart;
     if (posDifference >= originalMatchLength) {
+        printf("posdiff greater than matchlen!\n");
         return;
     }
 
     assert(ldmSeqStore->pos > 0);
+    if (posDifference > 0) {
+        return;
+    }
+
     printf("Considering LDM @ current = %u, posDiff = %u - ", current, posDifference);
     U32 candidateOffset = ldmSeqStore->seq[ldmSeqStore->pos - 1].offset + posDifference;
     U32 candidateMatchLength = originalMatchLength - posDifference;
@@ -800,6 +841,7 @@ static void maybeAddLdm(const rawSeqStore_t* const ldmSeqStore, ZSTD_match_t* ma
     }
     printf("adjusted to (of: %u, ml %u)\n", candidateOffset, candidateMatchLength);
     if (candidateMatchLength >= matches[*nbMatches-1].len) {
+        printf("large enough, adding\n");
         matches[*nbMatches].len = candidateMatchLength;
         matches[*nbMatches].off = candidateOffset + ZSTD_REP_MOVE;
         (*nbMatches)++;
@@ -870,6 +912,7 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
     assert(optLevel <= 2);
     ZSTD_rescaleFreqs(optStatePtr, (const BYTE*)src, srcSize, optLevel);
     ip += (ip==prefixStart);
+    int ldmAdjusted = 0;
 
     /* Set current LDM candidate to whatever might have been considered in prev block */
     if (ms->ldmSeqStore.pos != 0) {
@@ -888,19 +931,9 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
             U32 const ll0 = !litlen;
             U32 const current = (U32)(ip - base);
 
-            /* Fetch next LDM if necessary */
-            if (ms->ldmSeqStore.size > 0 && current >= currLdmEnd + startBlockIdx) {
-                printf("Getting next ldm: current: %u and currLdmEnd + sbi: %u\n", current, currLdmEnd + startBlockIdx);
-                getNextLdm(&currLdmStart, &currLdmEnd, &ms->ldmSeqStore,
-                           ms->ldmSeqStore.capacity, startBlockIdx);
-            }
-
+            getNextLdm(&currLdmStart, &currLdmEnd, &ms->ldmSeqStore, ms->ldmSeqStore.capacity, (U32)(ip-istart), current, startBlockIdx);
             U32 nbMatches = ZSTD_BtGetAllMatches(matches, ms, &nextToUpdate3, ip, iend, dictMode, rep, ll0, minMatch);
-            
-            if (ms->ldmSeqStore.size > 0 && current >= currLdmStart + startBlockIdx && current < currLdmEnd + startBlockIdx) {
-                printf("Adding LDM\n");
-                maybeAddLdm(&ms->ldmSeqStore, matches, &nbMatches, currLdmStart, currLdmEnd, current, startBlockIdx);
-            }
+            maybeAddLdm(&ms->ldmSeqStore, matches, &nbMatches, currLdmStart, currLdmEnd, current, startBlockIdx);
 
             if (!nbMatches) { ip++; continue; }
 
@@ -1015,17 +1048,12 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
                 U32 const litlen = (opt[cur].mlen == 0) ? opt[cur].litlen : 0;
                 U32 const previousPrice = opt[cur].price;
                 U32 const basePrice = previousPrice + ZSTD_litLengthPrice(0, optStatePtr, optLevel);
-
-                if (ms->ldmSeqStore.size > 0 && current >= currLdmEnd + startBlockIdx) {
-                    getNextLdm(&currLdmStart, &currLdmEnd, &ms->ldmSeqStore,
-                               ms->ldmSeqStore.capacity, (U32)(ip - istart));
-                }
-
+                
+                /* Fetch next LDM if necessary */
+                
+                getNextLdm(&currLdmStart, &currLdmEnd, &ms->ldmSeqStore, ms->ldmSeqStore.capacity, (U32)(ip-istart), current, startBlockIdx);
                 U32 nbMatches = ZSTD_BtGetAllMatches(matches, ms, &nextToUpdate3, inr, iend, dictMode, opt[cur].rep, ll0, minMatch);
-
-                if (ms->ldmSeqStore.size > 0 && current >= currLdmStart + startBlockIdx && current < currLdmEnd + startBlockIdx) {
-                    maybeAddLdm(&ms->ldmSeqStore, matches, &nbMatches, currLdmStart, currLdmEnd, current, startBlockIdx);
-                }
+                maybeAddLdm(&ms->ldmSeqStore, matches, &nbMatches, currLdmStart, currLdmEnd, current, startBlockIdx);
 
                 U32 matchNb;
                 if (!nbMatches) {
