@@ -824,21 +824,25 @@ static void maybeAddLdm(const rawSeqStore_t* const ldmSeqStore, ZSTD_match_t* ma
             return;
     }
 
-    printf("Considering LDM range (%u, %u) -> abs: (%u, %u) @ current = %u", ldmStart, ldmEnd, ldmStart + startBlockIdx - 1, ldmEnd + startBlockIdx - 1, current);
-
     if (ldmSeqStore->rangeFlag == 1) {
         ldmStart += startBlockIdx - 1;
         ldmEnd += startBlockIdx - 1;
     }
-    U32 posDifference = current - ldmStart;
-    printf(" posDiff = %u\n", posDifference);
+    
     U32 originalMatchLength = ldmEnd - ldmStart;
-    if (posDifference >= originalMatchLength) {
-        printf("posdiff greater than matchlen!\n");
-        return;
-    }
+    
+
+    U32 posDifference = current - ldmStart;
+    if (posDifference == 0)
+        printf("Considering LDM range (%u, %u) -> abs: (%u, %u) @ current = %u", ldmStart, ldmEnd, ldmStart + startBlockIdx - 1, ldmEnd + startBlockIdx - 1, current);
+
     //assert(ldmSeqStore->pos > 0);
     if (posDifference > 0) {
+        return;
+    }
+    
+    if (posDifference >= originalMatchLength) {
+        printf("posdiff greater than matchlen!\n");
         return;
     }
 
@@ -849,12 +853,13 @@ static void maybeAddLdm(const rawSeqStore_t* const ldmSeqStore, ZSTD_match_t* ma
         return;
     }
     printf("adjusted to (of(code): %u, ml %u)\n", candidateOffCode, candidateMatchLength);
-    if (candidateMatchLength >= matches[*nbMatches-1].len) {
+    if (candidateMatchLength > matches[*nbMatches-1].len) {
         printf("large enough, adding\n");
         /* Add sifting */
         matches[*nbMatches].len = candidateMatchLength;
         matches[*nbMatches].off = candidateOffCode;
         (*nbMatches)++;
+        
     }
 }
 
