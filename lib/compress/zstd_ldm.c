@@ -599,7 +599,7 @@ static void convertSeqStoreToRanges(rawSeqStore_t* rawSeqStore, size_t srcSize) 
         rawSeqStore->seq[i].litLength = matchEnd;
         printf("(%u, %u)\n", matchStart, matchEnd);
     }
-    if (rawSeqStore->seq[rawSeqStore->size - 1].litLength >= srcSize) {
+    if (rawSeqStore->seq[rawSeqStore->size - 1].litLength > srcSize + 1) {
         printf("SETTING RANGEFLAG TO 2\n");
         rawSeqStore->rangeFlag = 2; /* Signifies that this is a seqstore that spans
                                            multiple blocks. */
