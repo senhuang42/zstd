@@ -770,7 +770,7 @@ FORCE_INLINE_TEMPLATE U32 ZSTD_BtGetAllMatches (
 /* TODO: Increment by SBI */
 static void getNextLdm(U32* ldmStart, U32* ldmEnd, rawSeqStore_t* ldmSeqStore,
                        const U32 ldmSeqStoreStartPos, U32 currPosInBlock, U32 current, U32 startBlockIdx, U32 endBlockIdx) {
-    if (ldmSeqStore->pos >= ldmSeqStore->size ||
+    if (ldmSeqStore->pos >= ldmSeqStore->size - 1 || /* pos == size-1 means currLdm is the last one, should never fetch another */
         ldmSeqStore->size == 0 || ldmSeqStore->rangeFlag == 0) 
         return;
 
@@ -802,12 +802,12 @@ static void getNextLdm(U32* ldmStart, U32* ldmEnd, rawSeqStore_t* ldmSeqStore,
 
     } else {
         if (current >= *ldmEnd + startBlockIdx - 1) {
-            printf("Range before update: (%u, %u)\n", *ldmStart, *ldmEnd);
+            printf("Getting next raw ldm range at: current: %u with seqStore.pos: %u .size: %u\n", current, ldmSeqStore->pos, ldmSeqStore->size);
+            printf("Current raw ldm range: (%u, %u) -> abs: (%u, %u)\n", *ldmStart, *ldmEnd, *ldmStart + startBlockIdx - 1, *ldmEnd + startBlockIdx - 1);
             ldmSeqStore->pos++;
-            printf("Getting next ldm: current: %u and currLdmEnd + sbi - 1: %u\n", current, *ldmEnd + startBlockIdx - 1);
             *ldmStart = ldmSeqStore->seq[ldmSeqStore->pos].matchLength;
             *ldmEnd = ldmSeqStore->seq[ldmSeqStore->pos].litLength;
-            printf("Final range: (%u, %u) at pos: %u\n", *ldmStart, *ldmEnd, ldmSeqStore->pos);
+            printf("New raw ldm range: (%u, %u) -> abs: (%u, %u) at pos: %u\n", *ldmStart, *ldmEnd,  *ldmStart + startBlockIdx - 1, *ldmEnd + startBlockIdx - 1, ldmSeqStore->pos);
         }
     }
 }
@@ -824,35 +824,36 @@ static void maybeAddLdm(const rawSeqStore_t* const ldmSeqStore, ZSTD_match_t* ma
             return;
     }
 
+    printf("Considering LDM range (%u, %u) -> abs: (%u, %u) @ current = %u", ldmStart, ldmEnd, ldmStart + startBlockIdx - 1, ldmEnd + startBlockIdx - 1, current);
+
     if (ldmSeqStore->rangeFlag == 1) {
         ldmStart += startBlockIdx - 1;
         ldmEnd += startBlockIdx - 1;
     }
-
     U32 posDifference = current - ldmStart;
+    printf(" posDiff = %u\n", posDifference);
     U32 originalMatchLength = ldmEnd - ldmStart;
     if (posDifference >= originalMatchLength) {
         printf("posdiff greater than matchlen!\n");
         return;
     }
-
-    assert(ldmSeqStore->pos > 0);
+    //assert(ldmSeqStore->pos > 0);
     if (posDifference > 0) {
         return;
     }
 
-    printf("Considering LDM range (%u, %u) @ current = %u, posDiff = %u - ", ldmStart, ldmEnd, current, posDifference);
-    U32 candidateOffset = ldmSeqStore->seq[ldmSeqStore->pos].offset + posDifference;
+    U32 candidateOffCode = ldmSeqStore->seq[ldmSeqStore->pos].offset + posDifference + ZSTD_REP_MOVE;
     U32 candidateMatchLength = originalMatchLength - posDifference;
     if (candidateMatchLength < ZSTD_LDM_MINMATCH_MIN) {
         printf("too small\n");
         return;
     }
-    printf("adjusted to (of: %u, ml %u)\n", candidateOffset, candidateMatchLength);
-    if (candidateMatchLength >= matches[*nbMatches-1].len /*&& candidateOffset + ZSTD_REP_MOVE <= matches[*nbMatches].off*/) {
+    printf("adjusted to (of(code): %u, ml %u)\n", candidateOffCode, candidateMatchLength);
+    if (candidateMatchLength >= matches[*nbMatches-1].len) {
         printf("large enough, adding\n");
+        /* Add sifting */
         matches[*nbMatches].len = candidateMatchLength;
-        matches[*nbMatches].off = candidateOffset + ZSTD_REP_MOVE;
+        matches[*nbMatches].off = candidateOffCode;
         (*nbMatches)++;
     }
 }
@@ -928,10 +929,10 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
         size_t readIdx = ms->ldmSeqStore.pos == 0 ? 0 : ms->ldmSeqStore.pos - 1;
         currLdmStart = ms->ldmSeqStore.seq[readIdx].matchLength;
         currLdmEnd = ms->ldmSeqStore.seq[readIdx].litLength;
+        printf("Starting opt with ldm : (%u, %u)\n", currLdmStart, currLdmEnd);
     } else {
         currLdmStart = currLdmEnd = 0;
     }
-
 
     /* Match Loop */
     while (ip < ilimit) {

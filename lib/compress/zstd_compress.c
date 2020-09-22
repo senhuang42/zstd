@@ -2328,7 +2328,7 @@ static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
             for (i = 0; i < ZSTD_REP_NUM; ++i)
                 zc->blockState.nextCBlock->rep[i] = zc->blockState.prevCBlock->rep[i];
         }
-        printf("Deciding....\n");
+        printf("-----NEW BLOCK-----\n");
         if (zc->externSeqStore.pos < zc->externSeqStore.size) {
             assert(!zc->appliedParams.ldmParams.enableLdm);
             /* Updates ldmSeqStore.pos */
@@ -2361,7 +2361,7 @@ static size_t ZSTD_buildSeqStore(ZSTD_CCtx* zc, const void* src, size_t srcSize)
         {   const BYTE* const lastLiterals = (const BYTE*)src + srcSize - lastLLSize;
             ZSTD_storeLastLiterals(&zc->seqStore, lastLiterals, lastLLSize);
     }   }
-    printf("Done build ldm seq store\n");
+    printf("Finished BuildSeqStore()\n");
     return ZSTDbss_compress;
 }
 
