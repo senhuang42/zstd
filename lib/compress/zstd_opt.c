@@ -907,6 +907,7 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
     U32 const minMatch = (cParams->minMatch == 3) ? 3 : 4;
     U32 nextToUpdate3 = ms->nextToUpdate;
     U32 const startBlockIdx = (U32)(istart - base);
+    U32 const endBlockIdx = startBlockIdx + srcSize;
     
     U32 currLdmStart;
     U32 currLdmEnd;
@@ -918,7 +919,7 @@ ZSTD_compressBlock_opt_generic(ZSTD_matchState_t* ms,
     /* init */
     DEBUGLOG(5, "ZSTD_compressBlock_opt_generic: current=%u, prefix=%u, nextToUpdate=%u",
                 (U32)(ip - base), ms->window.dictLimit, ms->nextToUpdate);
-    printf("ZSTD_compressBlock_opt_generic: current=%u, sbi=%u\n", (U32)(ip - base), startBlockIdx);
+    printf("ZSTD_compressBlock_opt_generic: current=%u, sbi=%u, ebi=%u\n", (U32)(ip - base), startBlockIdx, endBlockIdx);
     assert(optLevel <= 2);
     ZSTD_rescaleFreqs(optStatePtr, (const BYTE*)src, srcSize, optLevel);
     ip += (ip==prefixStart);
