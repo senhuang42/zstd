@@ -834,12 +834,11 @@ static void maybeAddLdm(const rawSeqStore_t* const ldmSeqStore, ZSTD_match_t* ma
     }
     
     U32 originalMatchLength = ldmEndAdjusted - ldmStartAdjusted;
-    printf("Original matchlen: %u with ldmStartAdjusted: %u and ldmEndAdjusted: %u\n", originalMatchLength, ldmStartAdjusted, ldmEndAdjusted);
     U32 posDifference = current - ldmStartAdjusted;
     if (posDifference > 0 || posDifference >= originalMatchLength) {
         return;
     }
-    
+    printf("Original matchlen: %u with ldmStartAdjusted: %u and ldmEndAdjusted: %u\n", originalMatchLength, ldmStartAdjusted, ldmEndAdjusted);
     printf("Considering LDM range (%u, %u) -> abs: (%u, %u) @ current = %u\n", ldmStart, ldmEnd, ldmStartAdjusted, ldmEndAdjusted, current);
 
 
