@@ -836,7 +836,7 @@ static void maybeAddLdm(const rawSeqStore_t* const ldmSeqStore, ZSTD_match_t* ma
     
     U32 originalMatchLength = ldmEndAdjusted - ldmStartAdjusted;
     U32 posDifference = current - ldmStartAdjusted;
-    if (posDifference > 0 || posDifference >= originalMatchLength) {
+    if (posDifference > 0 /* TODO: change */ || posDifference >= originalMatchLength /*- MINMATCH*/ /* underflow here if we do this? */) {
         return;
     }
     printf("Original matchlen: %u - ", originalMatchLength);
@@ -851,7 +851,7 @@ static void maybeAddLdm(const rawSeqStore_t* const ldmSeqStore, ZSTD_match_t* ma
     }
     //printf("adjusted to (of(code): %u, ml %u)\n", candidateOffCode, candidateMatchLength);
     if ((*nbMatches == 0 || candidateMatchLength >= matches[*nbMatches-1].len) && *nbMatches < ZSTD_OPT_NUM) {
-        //printf("large enough, adding\n");
+        printf("large enough, adding\n");
         /*matches[*nbMatches].len = candidateMatchLength;
         matches[*nbMatches].off = candidateOffCode;
         (*nbMatches)++;*/
