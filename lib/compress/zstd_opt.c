@@ -838,7 +838,7 @@ static void maybeAddLdm(const rawSeqStore_t* const ldmSeqStore, ZSTD_match_t* ma
     if (posDifference > 0 || posDifference >= originalMatchLength) {
         return;
     }
-    printf("Original matchlen: %u with ldmStartAdjusted: %u and ldmEndAdjusted: %u\n", originalMatchLength, ldmStartAdjusted, ldmEndAdjusted);
+    printf("Original matchlen: %u - ", originalMatchLength);
     printf("Considering LDM range (%u, %u) -> abs: (%u, %u) @ current = %u\n", ldmStart, ldmEnd, ldmStartAdjusted, ldmEndAdjusted, current);
 
 
@@ -882,6 +882,9 @@ static void maybeAddLdm(const rawSeqStore_t* const ldmSeqStore, ZSTD_match_t* ma
                 (*nbMatches)++;
             } else {
                 printf("MATCHDIFF: ldm: (len: %u, off: %u), best: (len: %u, off: %u)\n", candidateMatchLength, candidateOffCode, matches[*nbMatches-1].len, matches[*nbMatches-1].off);
+                matches[*nbMatches].len = candidateMatchLength;
+                matches[*nbMatches].off = candidateOffCode;
+                (*nbMatches)++;
             }
         }
     }

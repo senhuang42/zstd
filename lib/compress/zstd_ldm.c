@@ -584,6 +584,8 @@ static void printSeqStore(rawSeqStore_t* rawSeqStore) {
     }
 }
 static void convertSeqStoreToRanges(rawSeqStore_t* rawSeqStore, size_t srcSize) {
+    if (rawSeqStore->size == 0)
+        return;
     size_t i;
     size_t currPos = 0;
     printf("Conversion...\n");
