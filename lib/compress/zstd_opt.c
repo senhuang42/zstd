@@ -801,13 +801,16 @@ static void getNextLdm(U32* ldmStart, U32* ldmEnd, rawSeqStore_t* ldmSeqStore,
         }
 
     } else {
-        if (current >= *ldmEnd + startBlockIdx - 1) {
+        /* In this case, all of the LDMs are within this one block */
+        U32 ldmStartAdjusted = *ldmStart + startBlockIdx;
+        U32 ldmEndAdjusted = *ldmEnd + startBlockIdx;
+        if (current >= ldmEndAdjusted) {
             printf("Getting next raw ldm range at: current: %u with seqStore.pos: %u .size: %u\n", current, ldmSeqStore->pos, ldmSeqStore->size);
-            printf("Current raw ldm range: (%u, %u) -> abs: (%u, %u)\n", *ldmStart, *ldmEnd, *ldmStart + startBlockIdx - 1, *ldmEnd + startBlockIdx - 1);
+            printf("Current raw ldm range: (%u, %u) -> abs: (%u, %u)\n", *ldmStart, *ldmEnd, ldmStartAdjusted, ldmEndAdjusted);
             ldmSeqStore->pos++;
             *ldmStart = ldmSeqStore->seq[ldmSeqStore->pos].matchLength;
             *ldmEnd = ldmSeqStore->seq[ldmSeqStore->pos].litLength;
-            printf("New raw ldm range: (%u, %u) -> abs: (%u, %u) at pos: %u\n", *ldmStart, *ldmEnd,  *ldmStart + startBlockIdx - 1, *ldmEnd + startBlockIdx - 1, ldmSeqStore->pos);
+            printf("New raw ldm range: (%u, %u) -> abs: (%u, %u) at pos: %u\n", *ldmStart, *ldmEnd,  *ldmStart + startBlockIdx, *ldmEnd + startBlockIdx, ldmSeqStore->pos);
         }
     }
 }
@@ -816,33 +819,26 @@ static void maybeAddLdm(const rawSeqStore_t* const ldmSeqStore, ZSTD_match_t* ma
                         U32* nbMatches, U32 ldmStart, U32 ldmEnd, U32 current, U32 startBlockIdx) {
     if (ldmSeqStore->size == 0)
         return;
+    assert(ldmSeqStore->rangeFlag != 0);
+    /* Adjusted ldms for when the ldm seq store was calculated for this block only */
+    U32 ldmStartAdjusted = ldmSeqStore->rangeFlag == 1 ? ldmStart + startBlockIdx : ldmStart;
+    U32 ldmEndAdjusted = ldmSeqStore->rangeFlag == 1 ? ldmEnd + startBlockIdx : ldmEnd;
+
+    /* Current must be within the adjusted ldm */
     if (ldmSeqStore->rangeFlag == 1) {
-        if (!(current >= ldmStart + startBlockIdx - 1) || !(current < ldmEnd + startBlockIdx - 1))
+        if (current < ldmStartAdjusted || current >= ldmEndAdjusted)
             return;
     } else if (ldmSeqStore->rangeFlag == 2) {
-        if (!(current >= ldmStart) || !(current < ldmEnd))
+        if (!(current >= ldmStartAdjusted) || !(current < ldmEndAdjusted))
             return;
     }
-
-    if (ldmSeqStore->rangeFlag == 1) {
-        ldmStart += startBlockIdx - 1;
-        ldmEnd += startBlockIdx - 1;
-    }
     
-    U32 originalMatchLength = ldmEnd - ldmStart;
-    
-
-    U32 posDifference = current - ldmStart;
+    U32 originalMatchLength = ldmEndAdjusted - ldmStartAdjusted;
+    U32 posDifference = current - ldmStartAdjusted;
     if (posDifference == 0)
-        printf("Considering LDM range (%u, %u) -> abs: (%u, %u) @ current = %u", ldmStart, ldmEnd, ldmStart + startBlockIdx - 1, ldmEnd + startBlockIdx - 1, current);
+        printf("Considering LDM range (%u, %u) -> abs: (%u, %u) @ current = %u\n", ldmStart, ldmEnd, ldmStartAdjusted, ldmEndAdjusted, current);
 
-    //assert(ldmSeqStore->pos > 0);
-    if (posDifference > 0) {
-        return;
-    }
-    
-    if (posDifference >= originalMatchLength) {
-        printf("posdiff greater than matchlen!\n");
+    if (posDifference > 0 || posDifference >= originalMatchLength) {
         return;
     }
 
@@ -853,12 +849,12 @@ static void maybeAddLdm(const rawSeqStore_t* const ldmSeqStore, ZSTD_match_t* ma
         return;
     }
     printf("adjusted to (of(code): %u, ml %u)\n", candidateOffCode, candidateMatchLength);
-    if (candidateMatchLength > matches[*nbMatches-1].len) {
+    if ((*nbMatches == 0 || candidateMatchLength >= matches[*nbMatches-1].len) && *nbMatches < ZSTD_OPT_NUM) {
         printf("large enough, adding\n");
         /* Add sifting */
-        matches[*nbMatches].len = candidateMatchLength;
-        matches[*nbMatches].off = candidateOffCode;
-        (*nbMatches)++;
+            matches[*nbMatches].len = candidateMatchLength;
+            matches[*nbMatches].off = candidateOffCode;
+            (*nbMatches)++;
         
     }
 }

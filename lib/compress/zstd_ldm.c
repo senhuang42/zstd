@@ -585,7 +585,7 @@ static void printSeqStore(rawSeqStore_t* rawSeqStore) {
 }
 static void convertSeqStoreToRanges(rawSeqStore_t* rawSeqStore, size_t srcSize) {
     size_t i;
-    size_t currPos = 1;
+    size_t currPos = 0;
     printf("Conversion...\n");
     rawSeqStore->rangeFlag = 1;
     for(i = 0 ; i < rawSeqStore->size; ++i) {
@@ -600,7 +600,7 @@ static void convertSeqStoreToRanges(rawSeqStore_t* rawSeqStore, size_t srcSize) 
         printf("(%u, %u)\n", matchStart, matchEnd);
     }
     printf("size:%u\n", rawSeqStore->size);
-    if (rawSeqStore->seq[rawSeqStore->size - 1].litLength > srcSize + 1) {
+    if (rawSeqStore->seq[rawSeqStore->size - 1].litLength > srcSize) {
         printf("SETTING RANGEFLAG TO 2\n");
         rawSeqStore->rangeFlag = 2; /* Signifies that this is a seqstore that spans
                                            multiple blocks. */
