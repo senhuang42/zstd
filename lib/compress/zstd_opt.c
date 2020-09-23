@@ -775,6 +775,7 @@ static void getNextLdm(U32* ldmStart, U32* ldmEnd, rawSeqStore_t* ldmSeqStore,
         return;
 
     if (ldmSeqStore->rangeFlag == 2) {
+        // No need to adjust if we have an absolute seq store
         if (current > *ldmEnd) {
             /* If our current pos is greater than current match end, we need to fetch a new match */
             //printf("Getting next ldm: current: %u and currLdmEnd: %u\n", current, *ldmEnd);

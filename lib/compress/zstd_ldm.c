@@ -583,7 +583,16 @@ static void printSeqStore(rawSeqStore_t* rawSeqStore) {
         printf("(of:%u ml:%u ll: %u)\n", rawSeqStore->seq[i].offset, rawSeqStore->seq[i].matchLength, rawSeqStore->seq[i].litLength);
     }
 }
-static void convertSeqStoreToRanges(rawSeqStore_t* rawSeqStore, size_t srcSize) {
+
+static void adjustLdmSeqStore(rawSeqStore_t* rawSeqStore, int baseDiff) {
+    size_t i = 0;
+    for (i; i < rawSeqStore->size; ++i) {
+        rawSeqStore->seq[i].matchLength += (size_t)baseDiff;
+        rawSeqStore->seq[i].litLength += (size_t)baseDiff;
+    }
+}
+
+static void convertSeqStoreToRanges(rawSeqStore_t* rawSeqStore, size_t srcSize, U32 seqStoreStartPos) {
     if (rawSeqStore->size == 0)
         return;
     size_t i;
@@ -602,18 +611,12 @@ static void convertSeqStoreToRanges(rawSeqStore_t* rawSeqStore, size_t srcSize) 
         printf("(%u, %u)\n", matchStart, matchEnd);
     }
     printf("size:%u\n", rawSeqStore->size);
+    /* this is maybe a lil bit janky of a way to check for a multi-block seqstore */
     if (rawSeqStore->seq[rawSeqStore->size - 1].litLength > srcSize) {
         printf("SETTING RANGEFLAG TO 2\n");
         rawSeqStore->rangeFlag = 2; /* Signifies that this is a seqstore that spans
                                            multiple blocks. */
-    }
-}
-
-static void adjustLdmSeqStore(rawSeqStore_t* rawSeqStore, int baseDiff) {
-    size_t i = 0;
-    for (i; i < rawSeqStore->size; ++i) {
-        rawSeqStore->seq[i].matchLength += (size_t)baseDiff;
-        rawSeqStore->seq[i].litLength += (size_t)baseDiff;
+        adjustLdmSeqStore(rawSeqStore, seqStoreStartPos);
     }
 }
 
@@ -641,7 +644,7 @@ size_t ZSTD_ldm_blockCompress(rawSeqStore_t* rawSeqStore,
         if ((*rawSeqStore).rangeFlag == 0) {
             /* only convert the rawSeqStore once, in case it spans multiple blocks */
             printSeqStore(rawSeqStore);
-            convertSeqStoreToRanges(rawSeqStore, srcSize);   /* sets rangeFlag to true */
+            convertSeqStoreToRanges(rawSeqStore, srcSize, (U32)(istart - ms->window.base));   /* sets rangeFlag to true */
         }
         (*rawSeqStore).capacity = (U32)(istart - ms->window.base);
         const BYTE* const prevBase = (BYTE const*)ms->window.base;
