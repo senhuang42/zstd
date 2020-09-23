@@ -851,7 +851,11 @@ static void maybeAddLdm(const rawSeqStore_t* const ldmSeqStore, ZSTD_match_t* ma
     printf("adjusted to (of(code): %u, ml %u)\n", candidateOffCode, candidateMatchLength);
     if ((*nbMatches == 0 || candidateMatchLength >= matches[*nbMatches-1].len) && *nbMatches < ZSTD_OPT_NUM) {
         printf("large enough, adding\n");
+        matches[*nbMatches].len = candidateMatchLength;
+        matches[*nbMatches].off = candidateOffCode;
+        (*nbMatches)++;
         /* Add sifting */
+        /*
         if (*nbMatches == 0) {
             matches[*nbMatches].len = candidateMatchLength;
             matches[*nbMatches].off = candidateOffCode;
@@ -872,7 +876,7 @@ static void maybeAddLdm(const rawSeqStore_t* const ldmSeqStore, ZSTD_match_t* ma
                 }
                 (*nbMatches)++;
             }
-        }
+        }*/
     }
 }
 
