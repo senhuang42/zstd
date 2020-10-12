@@ -161,6 +161,26 @@ static size_t ZSTD_ldm_countBackwardsMatch(
     return matchLength;
 }
 
+/** ZSTD_ldm_countBackwardsMatch_2segments() :
+ *  Returns the number of bytes that match backwards before
+ *  pIn and pMatch, even with `ip` and `match` in 2 different segments.
+ *
+ *  On reaching `pMatchBase`, start counting from mEnd */
+static size_t ZSTD_ldm_countBackwardsMatch_2segments(
+            const BYTE* pIn, const BYTE* pAnchor,
+            const BYTE* pMatch, const BYTE* pMatchBase, const BYTE* mEnd)
+{
+    const BYTE* const vBegin = MAX(pIn - (pMatch - pMatchBase), pAnchor);
+    size_t const matchLength = ZSTD_ldm_countBackwardsMatch(pIn, vBegin, pMatch, pMatchBase);
+    if (pMatch - matchLength != pMatchBase) {
+        return matchLength;
+    }
+    DEBUGLOG(7, "ZSTD_ldm_countBackwardsMatch_2segments: found a 2-parts backwards match (current length==%zu)", matchLength);
+    DEBUGLOG(7, "distance from pMatch to start = %zi", pMatch - pMatchBase);
+    DEBUGLOG(7, "final backwards match length = %zu", matchLength + ZSTD_ldm_countBackwardsMatch(pIn - matchLength, pAnchor, mEnd, pMatchBase));
+    return matchLength + ZSTD_ldm_countBackwardsMatch(pIn - matchLength, pAnchor, mEnd, pMatchBase);
+}
+
 /** ZSTD_ldm_fillFastTables() :
  *
  *  Fills the relevant tables for the ZSTD_fast and ZSTD_dfast strategies.
@@ -336,8 +356,8 @@ static size_t ZSTD_ldm_generateSequences_internal(
                         continue;
                     }
                     curBackwardMatchLength =
-                        ZSTD_ldm_countBackwardsMatch(ip, anchor, pMatch,
-                                                     lowMatchPtr);
+                        ZSTD_ldm_countBackwardsMatch_2segments(ip, anchor, pMatch,
+                                                               lowMatchPtr, dictEnd);
                     curTotalMatchLength = curForwardMatchLength +
                                           curBackwardMatchLength;
                 } else { /* !extDict */
