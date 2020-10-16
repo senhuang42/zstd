@@ -1548,12 +1548,16 @@ static size_t ZSTD_resetCCtx_internal(ZSTD_CCtx* zc,
         assert(params.ldmParams.hashLog >= params.ldmParams.bucketSizeLog);
         assert(params.ldmParams.hashRateLog < 32);
         zc->ldmState.hashPower = ZSTD_rollingHash_primePower(params.ldmParams.minMatchLength);
-        U32 numTagBits = params.ldmParams.hashRateLog;
-        U32 hbits = params.ldmParams.hashLog - params.ldmParams.bucketSizeLog;
-        U32 mask = numTagBits == 0 ? 0 : UINT_MAX;
-        mask <<= 32 - numTagBits;
-        mask >>= (32 - hbits < numTagBits) ? (32 - numTagBits) : hbits;
-        zc->ldmState.tagMask = mask;
+        {   U32 numTagBits = params.ldmParams.hashRateLog;
+            U32 hbits = params.ldmParams.hashLog - params.ldmParams.bucketSizeLog;
+            if (numTagBits == 0) {
+                zc->ldmState.tagMask = 0;
+            } else {
+                U32 mask = UINT_MAX << (32 - numTagBits);
+                mask >>= (32 - hbits < numTagBits) ? (32 - numTagBits) : hbits;
+                zc->ldmState.tagMask = mask;
+            }
+        }
     }
 
     {   size_t const windowSize = MAX(1, (size_t)MIN(((U64)1 << params.cParams.windowLog), pledgedSrcSize));
