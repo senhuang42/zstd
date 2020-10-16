@@ -474,6 +474,12 @@ ZSTDMT_serialState_reset(serialState_t* serialState,
         assert(params.ldmParams.hashRateLog < 32);
         serialState->ldmState.hashPower =
                 ZSTD_rollingHash_primePower(params.ldmParams.minMatchLength);
+        U32 numTagBits = params.ldmParams.hashRateLog;
+        U32 hbits = params.ldmParams.hashLog - params.ldmParams.bucketSizeLog;
+        U32 mask = numTagBits == 0 ? 0 : UINT_MAX;
+        mask <<= 32 - numTagBits;
+        mask >>= (32 - hbits < numTagBits) ? (32 - numTagBits) : hbits;
+        serialState->ldmState.tagMask = mask;
     } else {
         ZSTD_memset(&params.ldmParams, 0, sizeof(params.ldmParams));
     }

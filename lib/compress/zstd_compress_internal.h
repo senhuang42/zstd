@@ -190,6 +190,7 @@ typedef struct {
     BYTE* bucketOffsets;    /* Next position in bucket to insert entry */
     U64 hashPower;          /* Used to compute the rolling hash.
                              * Depends on ldmParams.minMatchLength */
+    U32 tagMask;
 } ldmState_t;
 
 typedef struct {
