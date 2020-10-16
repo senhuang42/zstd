@@ -73,6 +73,28 @@ static U32 ZSTD_ldm_getChecksum(U64 hash, U32 numBitsToDiscard)
     return (hash >> (64 - 32 - numBitsToDiscard)) & 0xFFFFFFFF;
 }
 
+static U32 ZSTD_ldm_ctz(U32 val)
+{
+    assert(val != 0);
+    {
+#   if defined(_MSC_VER)   /* Visual */
+        unsigned long r=0;
+        return _BitScanForward(&r, val) ? (unsigned)r : 0;
+#   elif defined(__GNUC__) && (__GNUC__ >= 3)   /* GCC Intrinsic */
+        return __builtin_ctz(val);
+#   elif defined(__ICCARM__)    /* IAR Intrinsic */
+        return __CTZ(val);
+#   else   /* Software version */
+        U32 count = 0;
+        while ((val & 1) == 0) {
+            val >>= 1;
+            ++count;
+        }
+        return count;
+#   endif
+    }
+}
+
 /** ZSTD_ldm_getTag() ;
  *  Given the hash, returns the most significant numTagBits bits
  *  after (32 + hbits) bits.
@@ -82,8 +104,7 @@ static U32 ZSTD_ldm_getChecksum(U64 hash, U32 numBitsToDiscard)
 static U32 ZSTD_ldm_getTag(U64 hash, U32 hbits, U32 numTagBits, U32 tagMask)
 {
     U32 newFinal = hash & tagMask;
-    //newFinal >>= (32 - hbits < numTagBits) ? 0 : (32 - numTagBits - hbits);
-    newFinal >>= __builtin_ctz(tagMask);
+    newFinal >>= ZSTD_ldm_ctz(tagMask);
     return newFinal;
 }
 
