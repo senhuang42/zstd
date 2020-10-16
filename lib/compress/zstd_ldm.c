@@ -101,7 +101,7 @@ static U32 ZSTD_ldm_ctz(U32 val)
  *
  *  If there are not enough bits remaining, return the last
  *  numTagBits bits. */
-static U32 ZSTD_ldm_getTag(U64 hash, U32 hbits, U32 numTagBits, U32 tagMask)
+static U32 ZSTD_ldm_getTag(U64 hash, U32 tagMask)
 {
     U32 newFinal = hash & tagMask;
     newFinal >>= ZSTD_ldm_ctz(tagMask);
@@ -144,7 +144,7 @@ static void ZSTD_ldm_makeEntryAndInsertByTag(ldmState_t* ldmState,
                                              U32 const offset,
                                              ldmParams_t const ldmParams)
 {
-    U32 const tag = ZSTD_ldm_getTag(rollingHash, hBits, ldmParams.hashRateLog, ldmState->tagMask);
+    U32 const tag = ZSTD_ldm_getTag(rollingHash, ldmState->tagMask);
     U32 const tagMask = ((U32)1 << ldmParams.hashRateLog) - 1;
     if (tag == tagMask) {
         U32 const hash = ZSTD_ldm_getSmallHash(rollingHash, hBits);
@@ -311,7 +311,7 @@ static size_t ZSTD_ldm_generateSequences_internal(
         lastHashed = ip;
 
         /* Do not insert and do not look for a match */
-        if (ZSTD_ldm_getTag(rollingHash, hBits, hashRateLog, ldmState->tagMask) != ldmTagMask) {
+        if (ZSTD_ldm_getTag(rollingHash, ldmState->tagMask) != ldmTagMask) {
            ip++;
            continue;
         }
