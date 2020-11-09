@@ -34,16 +34,50 @@ static size_t generateRandomSequences(ZSTD_Sequence* generatedSequences,
                                       uint8_t* generatedSrc,
                                       const void* literals, size_t literalsSize,
                                       const FUZZ_dataProducer_t* producer) {
-    const uint8_t* ptr = literals;
-    const uint8_t* const literalsEnd = literals + literalsSize;
+    const uint8_t* ip = literals;
+    const uint8_t* const iend = literals + literalsSize;
+    uint8_t* op = generatedSrc;
     uint32_t bytesRead = 0;
     uint32_t bytesGenerated = 0;
+    uint32_t rollingLitLength = 0;
     uint32_t generatedSrcSize = FUZZ_dataProducer_uint32Range(producer, 0, ZSTD_FUZZ_GENERATED_SRC_MAXSIZE);
+    uint32_t matchChanceFactor = FUZZ_dataProducer_uint32Range(producer, 1, 100);
 
-    srand(time(0));
-    while (ptr != literalsEnd) {
-        int createMatch = rand() % 2;
+    srand(FUZZ_dataProducer_int32(producer));
+    while (bytesGenerated <= generatedSrcSize) {
+        uint32_t bytesLeft = generatedSrcSize - bytesGenerated;
+        int shouldCreateMatch = bytesRead ?
+            (rand() % matchChanceFactor) && (bytesLeft >= ZSTD_MINMATCH_MIN)
+          : 0;
+        uint32_t offset;
+        uint32_t matchLength;
+        uint32_t litLength;
+
+        FUZZ_ASSERT(bytesGenerated <= generatedSrcSize);
+        FUZZ_ASSERT(ip <= iend);
+        if (!shouldCreateMatch) {
+            /* Write out one literal byte if we're not creating a new match */
+            *op = *ip;
+            ++ip; ++op; ++bytesRead; ++bytesGenerated; ++rollingLitLength;
+            continue;
+        }
+
+        /* Generate a random, valid match */
+        offset = (rand() % (bytesGenerated)) + 1;   /* of in: [1, bytesGenerated] */
+        matchLength = (rand() % (bytesLeft - ZSTD_MINMATCH_MIN + 1)) + ZSTD_MINMATCH_MIN; /* ml in: [ZSTD_MINMATCH_MIN, bytesLeft] */
+        litLength = rollingLitLength;
+
+        /* Decode the match into the generated buffer */
+        for (int i = 0; matchLength; ++i) {
+            op[i] = op[i - offset];
+        }
+        op += matchLength;
+        bytesGenerated += matchLength;
+        rollingLitLength = 0;
     }
+    FUZZ_ASSERT(bytesGenerated == generatedSrcSize);
+
+    return generatedSrcSize;
 }
 
 static size_t roundTripTest(void *result, size_t resultCapacity,
@@ -72,12 +106,13 @@ static size_t roundTripTest(void *result, size_t resultCapacity,
 
 int LLVMFuzzerTestOneInput(const uint8_t *src, size_t size)
 {
-    size_t const rBufSize = size;
-    void* rBuf = FUZZ_malloc(rBufSize);
-    size_t cBufSize = ZSTD_compressBound(size);
+    size_t rBufSize;
+    void* rBuf;
+    size_t cBufSize;
     void* cBuf;
     ZSTD_Sequence* generatedSequences;
     void* generatedSrc;
+    size_t generatedSrcSize;
     size_t litSize;
 
     /* Give a random portion of src data to the producer, to use for
@@ -85,19 +120,16 @@ int LLVMFuzzerTestOneInput(const uint8_t *src, size_t size)
     FUZZ_dataProducer_t *producer = FUZZ_dataProducer_create(src, size);
     size = FUZZ_dataProducer_reserveDataPrefix(producer);
 
-    /* Half of the time fuzz with a 1 byte smaller output size.
-     * This will still succeed because we don't use a dictionary, so the dictID
-     * field is empty, giving us 4 bytes of overhead.
-     */
-    cBufSize -= FUZZ_dataProducer_uint32Range(producer, 0, 1);
+    /* Generated our sequences */
+    generatedSequences = FUZZ_malloc(sizeof(ZSTD_Sequence)*size);
+    generatedSrc = FUZZ_malloc(ZSTD_FUZZ_GENERATED_SRC_MAXSIZE);
+    generatedSrcSize = generateRandomSequences(generatedSequences, generatedSrc, src, size, producer);
 
+    cBufSize = compressBound(generatedSrcSize);
     cBuf = FUZZ_malloc(cBufSize);
 
-    /* Generated our sequences */
-    litSize = FUZZ_dataProducer_reserveDataPrefix(producer);
-    generatedSequences = FUZZ_malloc(sizeof(ZSTD_Sequence)*litSize);
-    generatedSrc = FUZZ_malloc(ZSTD_FUZZ_GENERATED_SRC_MAXSIZE);
-    generateRandomSequences(generatedSequences, src, litSize, producer);
+    rBufSize = generatedSrcSize;
+    rBuf = FUZZ_malloc(rBuf);
 
     if (!cctx) {
         cctx = ZSTD_createCCtx();
@@ -110,7 +142,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *src, size_t size)
 
     {
         size_t const result =
-            roundTripTest(rBuf, rBufSize, cBuf, cBufSize, src, size, producer);
+            roundTripTest(rBuf, rBufSize, cBuf, cBufSize, generatedSrc, generatedSrcSize, producer);
         FUZZ_ZASSERT(result);
         FUZZ_ASSERT_MSG(result == size, "Incorrect regenerated size");
         FUZZ_ASSERT_MSG(!FUZZ_memcmp(src, rBuf, size), "Corruption!");
@@ -118,6 +150,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *src, size_t size)
     free(rBuf);
     free(cBuf);
     free(generatedSequences);
+    free(generatedSrc);
     FUZZ_dataProducer_free(producer);
 #ifndef STATEFUL_FUZZING
     ZSTD_freeCCtx(cctx); cctx = NULL;
