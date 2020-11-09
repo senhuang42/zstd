@@ -19,12 +19,32 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include "fuzz_helpers.h"
 #include "zstd_helpers.h"
 #include "fuzz_data_producer.h"
 
 static ZSTD_CCtx *cctx = NULL;
 static ZSTD_DCtx *dctx = NULL;
+
+#define ZSTD_FUZZ_GENERATED_SRC_MAXSIZE (1 << 22) /* Allow up to 4 MB generated data */
+
+/* Returns size of generatedSrc buffer */
+static size_t generateRandomSequences(ZSTD_Sequence* generatedSequences,
+                                      uint8_t* generatedSrc,
+                                      const void* literals, size_t literalsSize,
+                                      const FUZZ_dataProducer_t* producer) {
+    const uint8_t* ptr = literals;
+    const uint8_t* const literalsEnd = literals + literalsSize;
+    uint32_t bytesRead = 0;
+    uint32_t bytesGenerated = 0;
+    uint32_t generatedSrcSize = FUZZ_dataProducer_uint32Range(producer, 0, ZSTD_FUZZ_GENERATED_SRC_MAXSIZE);
+
+    srand(time(0));
+    while (ptr != literalsEnd) {
+        int createMatch = rand() % 2;
+    }
+}
 
 static size_t roundTripTest(void *result, size_t resultCapacity,
                             void *compressed, size_t compressedCapacity,
@@ -47,27 +67,6 @@ static size_t roundTripTest(void *result, size_t resultCapacity,
     FUZZ_ZASSERT(cSize);
     dSize = ZSTD_decompressDCtx(dctx, result, resultCapacity, compressed, cSize);
     FUZZ_ZASSERT(dSize);
-    /* When superblock is enabled make sure we don't expand the block more than expected.
-     * NOTE: This test is currently disabled because superblock mode can arbitrarily
-     * expand the block in the worst case. Once superblock mode has been improved we can
-     * re-enable this test.
-     */
-    if (0 && targetCBlockSize != 0) {
-        size_t normalCSize;
-        FUZZ_ZASSERT(ZSTD_CCtx_setParameter(cctx, ZSTD_c_targetCBlockSize, 0));
-        normalCSize = ZSTD_compress2(cctx, compressed, compressedCapacity, src, srcSize);
-        FUZZ_ZASSERT(normalCSize);
-        {
-            size_t const bytesPerBlock = 3 /* block header */
-                + 5 /* Literal header */
-                + 6 /* Huffman jump table */
-                + 3 /* number of sequences */
-                + 1 /* symbol compression modes */;
-            size_t const expectedExpansion = bytesPerBlock * (1 + (normalCSize / MAX(1, targetCBlockSize)));
-            size_t const allowedExpansion = (srcSize >> 3) + 5 * expectedExpansion + 10;
-            FUZZ_ASSERT(cSize <= normalCSize + allowedExpansion);
-        }
-    }
     return dSize;
 }
 
@@ -77,6 +76,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *src, size_t size)
     void* rBuf = FUZZ_malloc(rBufSize);
     size_t cBufSize = ZSTD_compressBound(size);
     void* cBuf;
+    ZSTD_Sequence* generatedSequences;
+    void* generatedSrc;
+    size_t litSize;
 
     /* Give a random portion of src data to the producer, to use for
     parameter generation. The rest will be used for (de)compression */
@@ -90,6 +92,12 @@ int LLVMFuzzerTestOneInput(const uint8_t *src, size_t size)
     cBufSize -= FUZZ_dataProducer_uint32Range(producer, 0, 1);
 
     cBuf = FUZZ_malloc(cBufSize);
+
+    /* Generated our sequences */
+    litSize = FUZZ_dataProducer_reserveDataPrefix(producer);
+    generatedSequences = FUZZ_malloc(sizeof(ZSTD_Sequence)*litSize);
+    generatedSrc = FUZZ_malloc(ZSTD_FUZZ_GENERATED_SRC_MAXSIZE);
+    generateRandomSequences(generatedSequences, src, litSize, producer);
 
     if (!cctx) {
         cctx = ZSTD_createCCtx();
@@ -109,6 +117,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *src, size_t size)
     }
     free(rBuf);
     free(cBuf);
+    free(generatedSequences);
     FUZZ_dataProducer_free(producer);
 #ifndef STATEFUL_FUZZING
     ZSTD_freeCCtx(cctx); cctx = NULL;
