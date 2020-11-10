@@ -27,6 +27,10 @@
 static ZSTD_CCtx *cctx = NULL;
 static ZSTD_DCtx *dctx = NULL;
 
+#ifndef min
+#define min(a,b)            (((a) < (b)) ? (a) : (b))
+#endif
+
 #define ZSTD_FUZZ_GENERATED_SRC_MAXSIZE (1 << 19) /* Allow up to ~1MB generated data */
 
 static void printSeqs(ZSTD_Sequence* inSeqs, size_t inSeqsSize) {
@@ -38,64 +42,82 @@ static void printSeqs(ZSTD_Sequence* inSeqs, size_t inSeqsSize) {
     printf("total bytes: %zu\n", totalBytes);
 }
 
-/* Returns size of generatedSrc buffer, modifies generatedSequencesSize to the nb of generated sequences */
-static size_t generateRandomSrcAndSequences(ZSTD_Sequence* generatedSequences, size_t* generatedSequencesSize,
-                                            uint8_t* generatedSrc, FUZZ_dataProducer_t* producer,
-                                            const void* literals, size_t literalsSize, size_t windowLog) {
+/* Returns size of source buffer */
+static size_t decodeSequences(void* dst, const ZSTD_Sequence* generatedSequences, size_t nbSequences,
+                            const void* literals, size_t literalsSize) {
     const uint8_t* ip = literals;
     const uint8_t* const iend = literals + literalsSize;
-    uint8_t* op = generatedSrc;
+    uint8_t* op = dst;
+    size_t generatedSrcBufferSize = 0;
+
+    /* Note that src is a literals buffer */
+    for (int i = 0; i < nbSequences; ++i) {
+        assert(generatedSequences[i].matchLength != 0);
+        assert(generatedSequences[i].offset != 0);
+
+        ZSTD_memcpy(op, ip, generatedSequences[i].litLength);
+        op += generatedSequences[i].litLength;
+        ip += generatedSequences[i].litLength;
+        literalsSize -= generatedSequences[i].litLength;
+
+        if (generatedSequences[i].offset != 0) {
+            for (int j = 0; j < generatedSequences[i].matchLength; ++j) {
+                op[j] = op[(int)j-(int)generatedSequences[i].offset];
+            }
+            op += generatedSequences[i].matchLength;
+        }
+        generatedSrcBufferSize += generatedSequences[i].matchLength + generatedSequences[i].litLength;
+    }
+    assert(ip <= iend);
+    ZSTD_memcpy(op, ip, literalsSize);
+    return generatedSrcBufferSize;
+}
+
+/* Returns nb sequences */
+static size_t generateRandomSequences(ZSTD_Sequence* generatedSequences,
+                                      uint8_t* generatedSrc, FUZZ_dataProducer_t* producer,
+                                      const void* literals, size_t literalsSize, size_t windowLog) {
     uint32_t bytesRead = 0;
     uint32_t bytesGenerated = 0;
     uint32_t rollingLitLength = 0;
+    uint32_t nbSeqGenerated = 0;
     uint32_t generatedSrcSize = FUZZ_dataProducer_uint32Range(producer, 0, ZSTD_FUZZ_GENERATED_SRC_MAXSIZE);
-    uint32_t avgLitLength = FUZZ_dataProducer_uint32Range(producer, 1, 1000);   /* Represents our average lit length */
 
-    printf("avg ll: %u\n", avgLitLength);
-    printf("literalsSize = %u\n", literalsSize);
-    printf("wlog = %u\n", windowLog);
-    printf("generated src size: %u\n", generatedSrcSize);
-    srand(FUZZ_dataProducer_uint32(producer));
-    while (bytesGenerated < generatedSrcSize && ip < iend) {
+    printf("generatedSrcSize: %u\n", generatedSrcSize);
+    while (bytesGenerated < generatedSrcSize) {
         uint32_t bytesLeft = generatedSrcSize - bytesGenerated;
-        int shouldCreateMatch = bytesRead > 0 ?
-            (rand() % avgLitLength == 0) && (bytesLeft >= ZSTD_MINMATCH_MIN)
-          : 0;
-        uint32_t offset;
-        uint32_t matchLength;
         uint32_t litLength;
+        uint32_t litBound;
+        uint32_t matchLength;
+        uint32_t offset;
+        uint32_t offsetBound;
 
-        FUZZ_ASSERT(bytesGenerated <= generatedSrcSize);
-        if (!shouldCreateMatch) {
-            /* Write out one literal byte if we're not creating a new match */
-            *op = *ip;
-            ++ip; ++op; ++bytesRead; ++bytesGenerated; ++rollingLitLength;
-            continue;
+        if (FUZZ_dataProducer_empty(producer)) {
+            break;
         }
 
-        /* Generate a random, valid match */
-        offset = (rand() % (bytesGenerated)) + 1;   /* of in: [1, bytesGenerated] */
-        if (offset > 1 << windowLog) {
-            offset = (rand() % (1 << windowLog)) + 1;
+        litBound = min(literalsSize, bytesLeft);
+        litLength = FUZZ_dataProducer_uint32Range(producer, 0, litBound);
+        literalsSize -= litLength;
+        bytesLeft -= litLength;
+        bytesGenerated += litLength;
+        if (bytesLeft < ZSTD_MINMATCH_MIN) {
+            break;
         }
-        matchLength = (rand() % (bytesLeft - ZSTD_MINMATCH_MIN + 1)) + ZSTD_MINMATCH_MIN; /* ml in: [ZSTD_MINMATCH_MIN, bytesLeft] */
-        litLength = rollingLitLength;
-        ZSTD_Sequence seq = {offset, litLength, matchLength, 0};
-        generatedSequences[(*generatedSequencesSize)++] = seq;
 
-        /* Decode the match into the generated buffer */
-        for (uint32_t i = 0; i < matchLength; ++i) {
-            op[i] = op[(int)i - (int)offset];
-        }
-        op += matchLength;
+        offsetBound = min(1 << windowLog, bytesGenerated);
+        offset = FUZZ_dataProducer_uint32Range(producer, 1, offsetBound);
+
+        matchLength = FUZZ_dataProducer_uint32Range(producer, ZSTD_MINMATCH_MIN, bytesLeft);
         bytesGenerated += matchLength;
-        rollingLitLength = 0;
-    }
-    printf("bytesGenerated: %u limilt : %u\n", bytesGenerated, generatedSrcSize);
-    FUZZ_ASSERT(bytesGenerated <= generatedSrcSize);
-    printSeqs(generatedSequences, *generatedSequencesSize);
 
-    return bytesGenerated;
+        ZSTD_Sequence seq = {offset, litLength, matchLength, 0};
+        generatedSequences[nbSeqGenerated++] = seq;
+    }
+    assert(bytesGenerated <= generatedSrcSize);
+    printSeqs(generatedSequences, nbSeqGenerated);
+
+    return nbSeqGenerated;
 }
 
 static size_t roundTripTest(void *result, size_t resultCapacity,
@@ -115,6 +137,7 @@ static size_t roundTripTest(void *result, size_t resultCapacity,
                                    generatedSequences, generatedSequencesSize,
                                    src, srcSize, ZSTD_sf_noBlockDelimiters);
     FUZZ_ZASSERT(cSize);
+    printf("cSize: %u\n", cSize);
 
     dSize = ZSTD_decompressDCtx(dctx, result, resultCapacity, compressed, cSize);
     FUZZ_ZASSERT(dSize);
@@ -130,12 +153,13 @@ int LLVMFuzzerTestOneInput(const uint8_t *src, size_t size)
     void* generatedSrc;
     size_t generatedSrcSize;
     ZSTD_Sequence* generatedSequences;
-    size_t generatedSequencesSize = 0;
+    size_t nbSequences;
     size_t wLog;
 
     /* Give a random portion of src data to the producer, to use for
     parameter generation. The rest will be used for (de)compression */
     FUZZ_dataProducer_t *producer = FUZZ_dataProducer_create(src, size);
+    printf("\n--NEW RUN--\n");
     size = FUZZ_dataProducer_reserveDataPrefix(producer);
     printf("data size: %u\n", FUZZ_dataProducer_remainingBytes(producer));
     printf("size: %u\n", size);
@@ -143,11 +167,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *src, size_t size)
     wLog = FUZZ_dataProducer_uint32Range(producer, ZSTD_WINDOWLOG_MIN, ZSTD_WINDOWLOG_MAX);
     generatedSequences = FUZZ_malloc(sizeof(ZSTD_Sequence)*ZSTD_FUZZ_GENERATED_SRC_MAXSIZE);
     generatedSrc = FUZZ_malloc(ZSTD_FUZZ_GENERATED_SRC_MAXSIZE);
-    printf("Checkpoint 1\n");
-    generatedSrcSize = generateRandomSrcAndSequences(generatedSequences, &generatedSequencesSize, generatedSrc, producer, src, size, wLog);
-
-    printf("data size: %u\n", FUZZ_dataProducer_remainingBytes(producer));
-    printf("Checkpoint 2\n");
+    nbSequences = generateRandomSequences(generatedSequences, generatedSrc, producer, src, size, wLog);
+    generatedSrcSize = decodeSequences(generatedSrc, generatedSequences, nbSequences, src, size);
     cBufSize = ZSTD_compressBound(generatedSrcSize);
     cBuf = FUZZ_malloc(cBufSize);
 
@@ -163,19 +184,15 @@ int LLVMFuzzerTestOneInput(const uint8_t *src, size_t size)
         FUZZ_ASSERT(dctx);
     }
 
-    {
-        printf("data size: %u\n", FUZZ_dataProducer_remainingBytes(producer));
-        size_t const result =
-            roundTripTest(rBuf, rBufSize, cBuf, cBufSize,
-                          generatedSrc, generatedSrcSize,
-                          generatedSequences, generatedSequencesSize,
-                          producer, wLog);
-        printf("Done roundtrip\n");
-        FUZZ_ZASSERT(result);
-        FUZZ_ASSERT_MSG(result == generatedSrcSize, "Incorrect regenerated size");
-        FUZZ_ASSERT_MSG(!FUZZ_memcmp(generatedSrc, rBuf, generatedSrcSize), "Corruption!");
-    }
-    printf("data size: %u\n", FUZZ_dataProducer_remainingBytes(producer));
+    size_t const result =
+        roundTripTest(rBuf, rBufSize, cBuf, cBufSize,
+                        generatedSrc, generatedSrcSize,
+                        generatedSequences, nbSequences,
+                        producer, wLog);
+    printf("Done roundtrip\n");
+    FUZZ_ZASSERT(result);
+    FUZZ_ASSERT_MSG(result == generatedSrcSize, "Incorrect regenerated size");
+    FUZZ_ASSERT_MSG(!FUZZ_memcmp(generatedSrc, rBuf, generatedSrcSize), "Corruption!");
     free(rBuf);
     free(cBuf);
     free(generatedSequences);
