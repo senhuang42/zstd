@@ -1718,6 +1718,9 @@ static size_t ZSTD_resetCCtx_internal(ZSTD_CCtx* zc,
             zc->ldmState.loadedDictEnd = 0;
         }
 
+        zc->blockDelimiters = ZSTD_sf_noBlockDelimiters;
+        zc->calculateRepcodes = ZSTD_sf_calculateRepcodes;
+
         /* Due to alignment, when reusing a workspace, we can actually consume
          * up to 3 extra bytes for alignment. See the comments in zstd_cwksp.h
          */
