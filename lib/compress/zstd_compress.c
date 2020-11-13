@@ -4572,8 +4572,10 @@ static size_t ZSTD_copySequencesToSeqStore(seqStore_t* seqStore, const ZSTD_sequ
     const BYTE* const iend = ip + srcSize;
     U32 windowSize = 1 << cctx->appliedParams.cParams.windowLog;
     U32* rep = cctx->blockState.prevCBlock->rep;
+    repcodes_t updatedRepcodes;
 
     DEBUGLOG(2, "ZSTD_copySequencesToSeqStore: numSeqs: %zu srcSize: %zu", inSeqsSize, srcSize);
+    ZSTD_memcpy(updatedRepcodes.rep, rep, sizeof(repcodes_t));
     for (; idx < inSeqsSize && idx <= seqRange->endIdx; ++idx) {
         U32 litLength = inSeqs[idx].litLength;
         U32 matchLength = inSeqs[idx].matchLength;
@@ -4659,66 +4661,41 @@ static size_t ZSTD_copySequencesToSeqStore(seqStore_t* seqStore, const ZSTD_sequ
         } else {
             U32 shouldUpdate = 1;
             U32 debugRepcode = 0;
-            DEBUGLOG(2, "before update: %u, %u, %u", rep[2], rep[1], rep[0]);
+            U32 ll0 = litLength == 0;
+            DEBUGLOG(2, "before update: %u, %u, %u", updatedRepcodes.rep[0], updatedRepcodes.rep[1], updatedRepcodes.rep[2]);
             DEBUGLOG(2, "Storing: idx: %zu (of: %u, ml: %u, ll: %u) rep: %u", idx, offCode - ZSTD_REP_MOVE, matchLength, litLength, repCode);
             RETURN_ERROR_IF(matchLength < MINMATCH, corruption_detected, "Matchlength too small! of: %u ml: %u ll: %u", offCode, matchLength, litLength);
-            if (cctx->calculateRepcodes == ZSTD_sf_calculateRepcodes && repCode != 0) {
+            if (cctx->calculateRepcodes == ZSTD_sf_calculateRepcodes) {
                 int i;
                 U32 offset = offCode - ZSTD_REP_MOVE;
-                
-                if (litLength == 0) {
-                    if (offset == rep[1]) {
-                        DEBUGLOG(2, "Case 1");
-                        debugRepcode = 1;
-                        U32 tmp = rep[0];
-                        rep[0] = rep[1];
-                        rep[1] = tmp;
-                        shouldUpdate = 0;
-                    } else if (offset == rep[2]) {
-                        DEBUGLOG(2, "Case 2");
-                        debugRepcode = 2;
-                    } else if (offset == rep[0] - 1) {
-                        DEBUGLOG(2, "Case 3");
-                        debugRepcode = 3;
-                    }
-                } else {
-                    if (offset == rep[0]) {
-                        DEBUGLOG(2, "Case 4");
-                        shouldUpdate = 0;
-                        debugRepcode = 1;
-                    } else if (offset == rep[1]) {
-                        DEBUGLOG(2, "Case 5");
-                        debugRepcode = 2;
-                        U32 tmp = rep[0];
-                        rep[0] = rep[1];
-                        rep[1] = tmp;
-                        shouldUpdate = 0;
-                    } else if (offset == rep[2]) {
-                        DEBUGLOG(2, "Case 6");
-                        debugRepcode = 3;
-                    }
-                }
-            }
-            /* Update repcodes */
-            if (shouldUpdate) {
-                for (int i = ZSTD_REP_NUM - 1; i > 0; i--) {
-                    rep[i] = rep[i - 1];
-                }
-                rep[0] = offCode - ZSTD_REP_MOVE;
-            }
-            DEBUGLOG(2, "post update: %u, %u, %u", rep[2], rep[1], rep[0]);
 
+                if (offset == updatedRepcodes.rep[0]) {
+                    debugRepcode = 1;
+                } else if (offset == updatedRepcodes.rep[1]) {
+                    debugRepcode = 2 - ll0;
+                } else if (offset == updatedRepcodes.rep[2]) {
+                    debugRepcode = 3 - ll0;
+                } else if (ll0 && offset == updatedRepcodes.rep[0] - 1) {
+                    debugRepcode = 1;
+                }
+                if (debugRepcode) {
+                    offCode = debugRepcode - 1;
+                }
+                updatedRepcodes = ZSTD_updateRep(updatedRepcodes.rep,
+                                                 offCode,
+                                                 ll0);
+            }
             // debugging
             if (repCode != debugRepcode) {
                 DEBUGLOG(2, "ERROR:");
                 for (int i = ZSTD_REP_NUM - 1; i >= 0; i--) {
-                    DEBUGLOG(2, "current rep: rep[%u] = %u", i, rep[i]);
+                    DEBUGLOG(2, "current rep: rep[%u] = %u", i, updatedRepcodes.rep[i]);
                 }
                 DEBUGLOG(2, "idx: %zu (ll: %u, ml: %u, of: %u) rep: %u", idx, litLength, matchLength, offCode - ZSTD_REP_MOVE, repCode);
                 DEBUGLOG(2, "rep: %u debugrep: %u", repCode, debugRepcode);
             }
             RETURN_ERROR_IF(debugRepcode != repCode, corruption_detected, "wrong repcode");
-            if (repCode) {
+            if (debugRepcode) {
                 ZSTD_storeSeq(seqStore, litLength, ip, iend, debugRepcode - 1, matchLength - MINMATCH);
                 //ZSTD_storeSeq(seqStore, litLength, ip, iend, offCode, matchLength - MINMATCH);
             } else {
@@ -4728,7 +4705,8 @@ static size_t ZSTD_copySequencesToSeqStore(seqStore_t* seqStore, const ZSTD_sequ
         ip += matchLength + litLength;
     }
     /* Update repcodes */
-    cctx->blockState.nextCBlock = cctx->blockState.prevCBlock;
+    ZSTD_memcpy(cctx->blockState.nextCBlock->rep, updatedRepcodes.rep,
+                sizeof(repcodes_t));
 
     /* Store any last literals for ZSTD_sf_noBlockDelimiters mode */
     if (cctx->blockDelimiters == ZSTD_sf_noBlockDelimiters && ip != iend) {
@@ -4756,7 +4734,6 @@ static size_t ZSTD_compressSequences_internal(void* dst, size_t dstCapacity,
     U32 compressedSeqsSize;
     size_t remaining = srcSize;
     ZSTD_sequenceRange seqRange = {0, 0, 0, 0};
-    U32 rep[ZSTD_REP_NUM] = {1, 4, 8};
     seqStore_t blockSeqStore;
     
     BYTE const* ip = (BYTE const*)src;

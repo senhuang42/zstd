@@ -395,6 +395,7 @@ typedef struct repcodes_s {
 
 MEM_STATIC repcodes_t ZSTD_updateRep(U32 const rep[3], U32 const offset, U32 const ll0)
 {
+    DEBUGLOG(2, "updateRep with offseT: %u", offset);
     repcodes_t newReps;
     if (offset >= ZSTD_REP_NUM) {  /* full offset */
         newReps.rep[2] = rep[1];
