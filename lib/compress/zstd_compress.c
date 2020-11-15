@@ -4596,7 +4596,7 @@ static size_t ZSTD_copySequencesToSeqStore(seqStore_t* seqStore, ZSTD_sequencePo
         /* Store any last literals for ZSTD_sf_noBlockDelimiters mode */
         U32 lastLLSize = (U32)(iend - ip);
         assert(ip <= iend);
-        DEBUGLOG(6, "Storing last literals of size: %u", lastLLSize);
+        DEBUGLOG(2, "Storing last literals of size: %u", lastLLSize);
         ZSTD_storeLastLiterals(seqStore, ip, lastLLSize);
     }
 

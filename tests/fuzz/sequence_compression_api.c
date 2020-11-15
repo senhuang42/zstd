@@ -74,6 +74,41 @@ static char *generatePseudoRandomString(char *str, size_t size) {
     }
     return str;
 }
+/* Returns size of source buffer */
+static size_t decodeSequences2(void* dst, const ZSTD_Sequence* generatedSequences, size_t nbSequences,
+                            const void* literals, size_t literalsSize, const void* dict, size_t dictSize) {
+    const uint8_t* ip = literals;
+    const uint8_t* const iend = literals + literalsSize;
+    uint8_t* op = dst;
+    size_t generatedSrcBufferSize = 0;
+    size_t bytesWritten = 0;
+
+    /* Note that src is a literals buffer */
+    for (size_t i = 0; i < nbSequences; ++i) {
+        assert(generatedSequences[i].matchLength != 0);
+        assert(generatedSequences[i].offset != 0);
+
+        ZSTD_memcpy(op, ip, generatedSequences[i].litLength);
+        bytesWritten += generatedSequences[i].litLength;
+        op += generatedSequences[i].litLength;
+        ip += generatedSequences[i].litLength;
+        literalsSize -= generatedSequences[i].litLength;
+
+        assert(generatedSequences[i].offset != 0);
+        {
+            int j = 0;
+            for (; j < generatedSequences[i].matchLength; ++j) {
+                op[j] = op[j-(int)generatedSequences[i].offset];
+            }
+            op += j;
+            bytesWritten += j;
+        }
+    }
+    generatedSrcBufferSize = bytesWritten;
+    assert(ip <= iend);
+    ZSTD_memcpy(op, ip, literalsSize);
+    return generatedSrcBufferSize;
+}
 
 /* Returns size of source buffer */
 static size_t decodeSequences(void* dst, const ZSTD_Sequence* generatedSequences, size_t nbSequences,
@@ -119,10 +154,10 @@ static size_t decodeSequences(void* dst, const ZSTD_Sequence* generatedSequences
             printf("Copied %u bytes from src\n", j);
             op += j;
             assert(generatedSequences[i].matchLength == j + k);
+            bytesWritten += generatedSequences[i].matchLength;
         }
-        bytesWritten += generatedSequences[i].matchLength;
-        generatedSrcBufferSize += bytesWritten;
     }
+    generatedSrcBufferSize = bytesWritten;
     assert(ip <= iend);
     ZSTD_memcpy(op, ip, literalsSize);
     return generatedSrcBufferSize;
@@ -201,7 +236,7 @@ static size_t roundTripTest(void *result, size_t resultCapacity,
         ddict = ZSTD_createDDict(dict, dictSize);
         ZSTD_DCtx_refDDict(dctx, ddict);
     }
-    
+
     dSize = ZSTD_decompressDCtx(dctx, result, resultCapacity, compressed, cSize);
     FUZZ_ZASSERT(dSize);
 
@@ -236,7 +271,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *src, size_t size)
     literalsBuffer = FUZZ_malloc(literalsSize);
     literalsBuffer = generatePseudoRandomString(literalsBuffer, literalsSize);
 
-    hasDict = 0;
+    hasDict = FUZZ_dataProducer_int32Range(producer, 0, 1);
     if (hasDict) {
         dictSize = FUZZ_dataProducer_uint32Range(producer, 1, ZSTD_FUZZ_GENERATED_DICT_MAXSIZE);
         dictBuffer = FUZZ_malloc(dictSize);
@@ -251,8 +286,6 @@ int LLVMFuzzerTestOneInput(const uint8_t *src, size_t size)
     generatedSrc = FUZZ_malloc(ZSTD_FUZZ_GENERATED_SRC_MAXSIZE);
 
     nbSequences = generateRandomSequences(generatedSequences, generatedSrc, producer, literalsBuffer, literalsSize, wLog, dictSize);
-    //generatedSequences[0].offset = 13371;
-    nbSequences = 3;
     printSeqs(generatedSequences, nbSequences);
     generatedSrcSize = decodeSequences(generatedSrc, generatedSequences, nbSequences, literalsBuffer, literalsSize, dictBuffer, dictSize);
 
