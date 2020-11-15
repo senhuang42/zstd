@@ -61,6 +61,7 @@ TARGET_INFO = {
     'dictionary_stream_round_trip': TargetInfo(InputType.RAW_DATA),
     'decompress_dstSize_tooSmall': TargetInfo(InputType.RAW_DATA),
     'fse_read_ncount': TargetInfo(InputType.RAW_DATA),
+    'sequence_compression_api': TargetInfo(InputType.RAW_DATA),
 }
 TARGETS = list(TARGET_INFO.keys())
 ALL_TARGETS = TARGETS + ['all']
@@ -541,7 +542,6 @@ def libfuzzer(target, corpora=None, artifact=None, seed=None, extra_args=None):
         extra_args = []
 
     target = abs_join(FUZZ_DIR, target)
-
     corpora = [create(corpora)]
     artifact = create(artifact)
     seed = check(seed)
