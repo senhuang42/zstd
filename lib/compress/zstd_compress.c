@@ -4497,6 +4497,8 @@ static size_t ZSTD_copySequencesToSeqStore(seqStore_t* seqStore, ZSTD_sequencePo
     repcodes_t updatedRepcodes;
     U32 bytesAdjustment = 0;
     U32 finalMatchSplit = 0;
+    U32 bytesRead = 0;
+    U32 dictSize = cctx->cdict ? cctx->cdict->dictContentSize : 0;
 
     DEBUGLOG(5, "ZSTD_copySequencesToSeqStore: idx: %zu PIS: %u blockSize: %zu windowSize: %u", idx, startPosInSequence, blockSize, windowSize);
     DEBUGLOG(5, "Start seq: idx: %u (of: %u ml: %u ll: %u)", idx, inSeqs[idx].offset, inSeqs[idx].matchLength, inSeqs[idx].litLength);
@@ -4509,7 +4511,9 @@ static size_t ZSTD_copySequencesToSeqStore(seqStore_t* seqStore, ZSTD_sequencePo
         U32 offCode = rawOffset + ZSTD_REP_MOVE;
         U32 repCode = cctx->calculateRepcodes ? 0 : currSeq.rep;
 
-        RETURN_ERROR_IF(rawOffset > windowSize, corruption_detected, "Offset too large!");
+        bytesRead += litLength;
+        //DEBUGLOG(2, "bytesRead: %u,", bytesRead);
+        //RETURN_ERROR_IF(rawOffset > windowSize + dictSize || rawOffset > bytesRead + dictSize, corruption_detected, "Offset too large!");
         /* Modify the sequence depending on where endPosInSequence lies */
         if (endPosInSequence >= currSeq.litLength + currSeq.matchLength) {
             /* Use up the whole sequence */
