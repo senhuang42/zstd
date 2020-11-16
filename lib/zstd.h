@@ -417,6 +417,7 @@ typedef enum {
      * ZSTD_c_enableDedicatedDictSearch
      * ZSTD_c_stableInBuffer
      * ZSTD_c_stableOutBuffer
+     * ZSTD_c_blockDelimiters
      * Because they are not stable, it's necessary to define ZSTD_STATIC_LINKING_ONLY to access them.
      * note : never ever use experimentalParam? names directly;
      *        also, the enums values themselves are unstable and can still change.
@@ -430,7 +431,8 @@ typedef enum {
      ZSTD_c_experimentalParam7=1004,
      ZSTD_c_experimentalParam8=1005,
      ZSTD_c_experimentalParam9=1006,
-     ZSTD_c_experimentalParam10=1007
+     ZSTD_c_experimentalParam10=1007,
+     ZSTD_c_experimentalParam11=1008
 } ZSTD_cParameter;
 
 typedef struct {
@@ -1298,14 +1300,9 @@ ZSTDLIB_API unsigned long long ZSTD_decompressBound(const void* src, size_t srcS
 ZSTDLIB_API size_t ZSTD_frameHeaderSize(const void* src, size_t srcSize);
 
 typedef enum {
-  ZSTD_sf_noBlockDelimiters,         /* Representation of ZSTD_Sequence has no block delimiters, sequences only */
-  ZSTD_sf_explicitBlockDelimiters    /* Representation of ZSTD_Sequence contains explicit block delimiters */
-} ZSTD_sequenceFormat_blockBoundaries_e;
-
-typedef enum {
-  ZSTD_sf_calculateRepcodes,
-  ZSTD_sf_noCalculateRepcodes
-} ZSTD_sequenceFormat_repcodes_e;
+  ZSTD_sf_noBlockDelimiters = 0,         /* Representation of ZSTD_Sequence has no block delimiters, sequences only */
+  ZSTD_sf_explicitBlockDelimiters = 1    /* Representation of ZSTD_Sequence contains explicit block delimiters */
+} ZSTD_sequenceArrangement_e;
 
 /*! ZSTD_generateSequences() :
  * Generate sequences using ZSTD_compress2, given a source buffer.
@@ -1335,14 +1332,16 @@ ZSTDLIB_API size_t ZSTD_mergeBlockDelimiters(ZSTD_Sequence* sequences, size_t se
 
 /*! ZSTD_compressSequences() :
  * Compress sequences given by inSeqs, generated from source buffer 'src', using a cctx.
- * The entire source is compressed into a single frame. 
+ * The entire source is compressed into a single frame. Some behavior is determined by parameters set in
+ * the ZSTD_CCtx.
  * 
- * If invoked with ZSTD_sf_noBlockDelimiters, the array of ZSTD_Sequence is expected to contain
+ * If cctx->blockDelimiters == ZSTD_sf_noBlockDelimiters, the array of ZSTD_Sequence is expected to contain
  * no block delimiters (defined in ZSTD_Sequence). Block boundaries are roughly determined based on
- * the block size derived from the cctx, and sequences may be split.
+ * the block size derived from cctx initialization, and sequences may be split. 
  * 
- * If invoked with ZSTD_sf_explicitBlockDelimiters, the array of ZSTD_Sequence is expected to contain
- * block delimiters.
+ * If cctx->blockDelimiters == ZSTD_sf_explicitBlockDelimiters, block delimiters are required.
+ * 
+ * Currently, this function will always (re)calculate repcodes.
  * 
  * @return : final compressed size.
  */
@@ -1747,6 +1746,14 @@ ZSTDLIB_API size_t ZSTD_CCtx_refPrefix_advanced(ZSTD_CCtx* cctx, const void* pre
  * if it does. While not strictly necessary, this should prevent surprises.
  */
 #define ZSTD_c_stableOutBuffer ZSTD_c_experimentalParam10
+
+/* ZSTD_c_blockDelimiters
+ * Default is ZSTD_sf_noBlockDelimiters
+ * For use with sequence compression API. Designates whether or not the given
+ * array of ZSTD_Sequence contains block delimiters (sequences with offset == 0
+ * and matchLength == 0).
+ */
+#define ZSTD_c_blockDelimiters ZSTD_c_experimentalParam11
 
 /*! ZSTD_CCtx_getParameter() :
  *  Get the requested compression parameter value, selected by enum ZSTD_cParameter,
