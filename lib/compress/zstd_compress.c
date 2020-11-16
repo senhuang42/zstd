@@ -4489,7 +4489,7 @@ size_t ZSTD_compress2(ZSTD_CCtx* cctx,
 typedef struct {
     U32 idx;             /* Index in array of ZSTD_Sequence */
     U32 posInSequence;   /* Position within sequence at idx */
-    U64 posInSrc;        /* Position in src stream */
+    U64 posInSrc;        /* Number of bytes given by sequences provided so far */
 } ZSTD_sequencePosition;
 
 #if defined(DEBUGLEVEL) && (DEBUGLEVEL >= 6)
@@ -4510,7 +4510,7 @@ static size_t ZSTD_validateSequence(U32 offCode, U32 repCode, U32 matchLength,
 }
 #endif
 
-/* Returns offset code, given a raw offset and repcode array */
+/* Returns an offset code, given a sequence's raw offset, the ongoing repcode array, and whether litLength == 0 */
 static U32 ZSTD_finalizeOffCode(U32 rawOffset, const U32* const rep, U32 ll0) {
     U32 offCode = rawOffset + ZSTD_REP_MOVE;
     U32 repCode = 0;
@@ -4525,6 +4525,7 @@ static U32 ZSTD_finalizeOffCode(U32 rawOffset, const U32* const rep, U32 ll0) {
         repCode = 3;
     }
     if (repCode) {
+        /* ZSTD_storeSeq expects a number in the range [0, 2] to represent a repcode */
         offCode = repCode - 1;
     }
     return offCode;
@@ -4535,7 +4536,7 @@ static size_t ZSTD_copySequencesToSeqStoreBlockDelim(seqStore_t* seqStore, ZSTD_
                                            const void* src, size_t blockSize, ZSTD_CCtx* cctx) {
     size_t idx = seqPos->idx;
     BYTE const* ip = (BYTE const*)(src);
-    BYTE const* iend = ip + blockSize;
+    const BYTE const* iend = ip + blockSize;
     repcodes_t updatedRepcodes;
     U32 dictSize;
     U32 litLength;
@@ -4545,12 +4546,11 @@ static size_t ZSTD_copySequencesToSeqStoreBlockDelim(seqStore_t* seqStore, ZSTD_
 
     if (cctx->cdict) {
         dictSize = cctx->cdict->dictContentSize;
-    } else if (cctx->prefixDict.dictSize) {
+    } else if (cctx->prefixDict.dict) {
         dictSize = cctx->prefixDict.dictSize;
     } else {
         dictSize = 0;
     }
-
     ZSTD_memcpy(updatedRepcodes.rep, cctx->blockState.prevCBlock->rep, sizeof(repcodes_t));
     for (; (inSeqs[idx].matchLength != 0 || inSeqs[idx].offset != 0) && idx < inSeqsSize; ++idx) {
         litLength = inSeqs[idx].litLength;
@@ -4596,7 +4596,7 @@ static size_t ZSTD_copySequencesToSeqStore(seqStore_t* seqStore, ZSTD_sequencePo
     size_t startPosInSequence = seqPos->posInSequence;
     size_t endPosInSequence = seqPos->posInSequence + blockSize;
     BYTE const* ip = (BYTE const*)(src);
-    BYTE const* iend = ip + blockSize;
+    BYTE const* iend = ip + blockSize;  /* May be adjusted if we decide to process fewer than blockSize bytes */
     repcodes_t updatedRepcodes;
     U32 bytesAdjustment = 0;
     U32 finalMatchSplit = 0;
@@ -4608,11 +4608,11 @@ static size_t ZSTD_copySequencesToSeqStore(seqStore_t* seqStore, ZSTD_sequencePo
     U32 repCode;
     
     if (cctx->cdict) {
-        dictSize = ZSTD_sizeof_CDict(cctx->cdict);
-    } else if (cctx->prefixDict.dictSize) {
+        dictSize = cctx->cdict->dictContentSize;
+    } else if (cctx->prefixDict.dict) {
         dictSize = cctx->prefixDict.dictSize;
-    } else if (ZSTD_sizeof_localDict(cctx->localDict)) {
-        dictSize = ZSTD_sizeof_localDict(cctx->localDict);
+    } else {
+        dictSize = 0;
     }
     DEBUGLOG(5, "ZSTD_copySequencesToSeqStore: idx: %zu PIS: %u blockSize: %zu windowSize: %u", idx, startPosInSequence, blockSize, windowSize);
     DEBUGLOG(5, "Start seq: idx: %u (of: %u ml: %u ll: %u)", idx, inSeqs[idx].offset, inSeqs[idx].matchLength, inSeqs[idx].litLength);
@@ -4638,9 +4638,10 @@ static size_t ZSTD_copySequencesToSeqStore(seqStore_t* seqStore, ZSTD_sequencePo
             startPosInSequence = 0;
             idx++;
         } else {
-            /* This is the final sequence we're adding from inSeqs, and endPosInSequence
+            /* This is the final (partial) sequence we're adding from inSeqs, and endPosInSequence
                does not reach the end of the match. So, we have to split the sequence */
-            DEBUGLOG(6, "Require a split: diff: %u, idx: %u PIS: %u", currSeq.litLength + currSeq.matchLength - endPosInSequence, idx, endPosInSequence);
+            DEBUGLOG(6, "Require a split: diff: %u, idx: %u PIS: %u",
+                     currSeq.litLength + currSeq.matchLength - endPosInSequence, idx, endPosInSequence);
             if (endPosInSequence > litLength) {
                 litLength = startPosInSequence >= litLength ? 0 : litLength - startPosInSequence;
                 U32 firstHalfMatchLength = endPosInSequence - startPosInSequence - litLength;
@@ -4660,7 +4661,8 @@ static size_t ZSTD_copySequencesToSeqStore(seqStore_t* seqStore, ZSTD_sequencePo
                 } else {
                     /* Move the position in sequence backwards so that we don't split match, and break to store
                      * the last literals. We use the original currSeq.litLength as a marker for where endPosInSequence
-                     * should go.
+                     * should go. We prefer to do this whenever it is not necessary to split the match, or if doing so
+                     * would cause the first half of the match to be too small
                      */
                     bytesAdjustment = endPosInSequence - currSeq.litLength;
                     endPosInSequence = currSeq.litLength;
@@ -4692,7 +4694,6 @@ static size_t ZSTD_copySequencesToSeqStore(seqStore_t* seqStore, ZSTD_sequencePo
     assert(endPosInSequence <= inSeqs[idx].litLength + inSeqs[idx].matchLength);
     seqPos->idx = idx;
     seqPos->posInSequence = endPosInSequence;
-    /* Update repcodes */
     ZSTD_memcpy(cctx->blockState.nextCBlock->rep, updatedRepcodes.rep, sizeof(repcodes_t));
 
     iend -= bytesAdjustment;
