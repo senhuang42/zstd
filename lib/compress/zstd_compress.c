@@ -462,6 +462,11 @@ ZSTD_bounds ZSTD_cParam_getBounds(ZSTD_cParameter param)
         bounds.lowerBound = (int)ZSTD_sf_noBlockDelimiters;
         bounds.upperBound = (int)ZSTD_sf_explicitBlockDelimiters;
         return bounds;
+    
+    case ZSTD_c_validateSequences:
+        bounds.lowerBound = 0;
+        bounds.upperBound = 1;
+        return bounds;
 
     default:
         bounds.error = ERROR(parameter_unsupported);
@@ -523,6 +528,7 @@ static int ZSTD_isUpdateAuthorized(ZSTD_cParameter param)
     case ZSTD_c_stableInBuffer:
     case ZSTD_c_stableOutBuffer:
     case ZSTD_c_blockDelimiters:
+    case ZSTD_c_validateSequences:
     default:
         return 0;
     }
@@ -574,6 +580,7 @@ size_t ZSTD_CCtx_setParameter(ZSTD_CCtx* cctx, ZSTD_cParameter param, int value)
     case ZSTD_c_stableInBuffer:
     case ZSTD_c_stableOutBuffer:
     case ZSTD_c_blockDelimiters:
+    case ZSTD_c_validateSequences:
         break;
 
     default: RETURN_ERROR(parameter_unsupported, "unknown parameter");
@@ -779,6 +786,11 @@ size_t ZSTD_CCtxParams_setParameter(ZSTD_CCtx_params* CCtxParams,
         BOUNDCHECK(ZSTD_c_blockDelimiters, value);
         CCtxParams->blockDelimiters = (ZSTD_sequenceFormat_e)value;
         return CCtxParams->blockDelimiters;
+    
+    case ZSTD_c_validateSequences:
+        BOUNDCHECK(ZSTD_c_validateSequences, value);
+        CCtxParams->validateSequences = value;
+        return CCtxParams->validateSequences;
 
     default: RETURN_ERROR(parameter_unsupported, "unknown parameter");
     }
@@ -899,6 +911,9 @@ size_t ZSTD_CCtxParams_getParameter(
         break;
     case ZSTD_c_blockDelimiters :
         *value = (int)CCtxParams->blockDelimiters;
+        break;
+    case ZSTD_c_validateSequences :
+        *value = (int)CCtxParams->validateSequences;
         break;
     default: RETURN_ERROR(parameter_unsupported, "unknown parameter");
     }
@@ -4544,6 +4559,8 @@ static size_t ZSTD_copySequencesToSeqStoreExplicitBlockDelim(ZSTD_CCtx* cctx, ZS
     U32 matchLength;
     U32 ll0;
     U32 offCode;
+    int shouldValidateSequences;
+    ZSTD_CCtx_getParameter(cctx, ZSTD_c_validateSequences, &shouldValidateSequences);
 
     if (cctx->cdict) {
         dictSize = (U32)cctx->cdict->dictContentSize;
@@ -4561,10 +4578,12 @@ static size_t ZSTD_copySequencesToSeqStoreExplicitBlockDelim(ZSTD_CCtx* cctx, ZS
         updatedRepcodes = ZSTD_updateRep(updatedRepcodes.rep, offCode, ll0);
 
         DEBUGLOG(6, "Storing sequence: (of: %u, ml: %u, ll: %u)", offCode, matchLength, litLength);
-        seqPos->posInSrc += litLength + matchLength;
-        FORWARD_IF_ERROR(ZSTD_validateSequence(offCode, matchLength, seqPos->posInSrc,
-                                               cctx->appliedParams.cParams.windowLog, dictSize),
-                                               "Sequence validation failed");
+        if (shouldValidateSequences) {
+            seqPos->posInSrc += litLength + matchLength;
+            FORWARD_IF_ERROR(ZSTD_validateSequence(offCode, matchLength, seqPos->posInSrc,
+                                                cctx->appliedParams.cParams.windowLog, dictSize),
+                                                "Sequence validation failed");
+        }
         ZSTD_storeSeq(&cctx->seqStore, litLength, ip, iend, offCode, matchLength - MINMATCH);
         ip += matchLength + litLength;
     }
@@ -4608,6 +4627,8 @@ static size_t ZSTD_copySequencesToSeqStoreNoBlockDelim(ZSTD_CCtx* cctx, ZSTD_seq
     U32 matchLength;
     U32 rawOffset;
     U32 offCode;
+    int shouldValidateSequences;
+    ZSTD_CCtx_getParameter(cctx, ZSTD_c_validateSequences, &shouldValidateSequences);
     
     if (cctx->cdict) {
         dictSize = cctx->cdict->dictContentSize;
@@ -4681,10 +4702,12 @@ static size_t ZSTD_copySequencesToSeqStoreNoBlockDelim(ZSTD_CCtx* cctx, ZSTD_seq
             updatedRepcodes = ZSTD_updateRep(updatedRepcodes.rep, offCode, ll0);
         }
 
-        seqPos->posInSrc += litLength + matchLength;
-        FORWARD_IF_ERROR(ZSTD_validateSequence(offCode, matchLength, seqPos->posInSrc,
-                                               cctx->appliedParams.cParams.windowLog, dictSize),
-                         "Sequence validation failed");
+        if (shouldValidateSequences) {
+            seqPos->posInSrc += litLength + matchLength;
+            FORWARD_IF_ERROR(ZSTD_validateSequence(offCode, matchLength, seqPos->posInSrc,
+                                                   cctx->appliedParams.cParams.windowLog, dictSize),
+                                                   "Sequence validation failed");
+        }
         DEBUGLOG(6, "Storing sequence: (of: %u, ml: %u, ll: %u)", offCode, matchLength, litLength);
         ZSTD_storeSeq(&cctx->seqStore, litLength, ip, iend, offCode, matchLength - MINMATCH);
         ip += matchLength + litLength;
