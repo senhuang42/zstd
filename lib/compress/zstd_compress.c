@@ -3167,6 +3167,60 @@ static int setUpSeqStores(ZSTD_CCtx* zc,
     }
 }
 
+static size_t ZSTD_compressSequences_singleBlock(ZSTD_CCtx* zc, seqStore_t* seqStore,
+                                             void* dst, size_t dstCapacity,
+                                             const void* src, size_t srcSize,
+                                             U32 lastBlock) {
+    const U32 rleMaxLength = 25;
+    BYTE* op = (BYTE*)dst;
+    const BYTE* ip = (const BYTE*)src;
+    size_t cSize;
+    size_t cSeqsSize = ZSTD_entropyCompressSequences(seqStore,
+                &zc->blockState.prevCBlock->entropy, &zc->blockState.nextCBlock->entropy,
+                &zc->appliedParams,
+                op + ZSTD_blockHeaderSize, dstCapacity - ZSTD_blockHeaderSize,
+                srcSize,
+                zc->entropyWorkspace, ENTROPY_WORKSPACE_SIZE /* statically allocated in resetCCtx */,
+                zc->bmi2);
+
+    if (!zc->isFirstBlock &&
+        cSeqsSize < rleMaxLength &&
+        ZSTD_maybeRLE(seqStore) &&
+        ZSTD_isRLE((BYTE const*)src, srcSize)) {
+        /* We don't want to emit our first block as a RLE even if it qualifies because
+        * doing so will cause the decoder (cli only) to throw a "should consume all input error."
+        * This is only an issue for zstd <= v1.4.3
+        */
+        cSeqsSize = 1;
+    }
+
+    if (zc->seqCollector.collectSequences) {
+        ZSTD_copyBlockSequences(zc);
+        return 0;
+    }
+
+    if (zc->blockState.prevCBlock->entropy.fse.offcode_repeatMode == FSE_repeat_valid)
+        zc->blockState.prevCBlock->entropy.fse.offcode_repeatMode = FSE_repeat_check;
+
+    if (cSeqsSize == 0) {
+        cSize = ZSTD_noCompressBlock(op, dstCapacity, ip, srcSize, lastBlock);
+        FORWARD_IF_ERROR(cSize, "Nocompress block failed");
+        DEBUGLOG(2, "1: Writing out nocompress block, size: %zu", cSize);
+    } else if (cSeqsSize == 1) {
+        cSize = ZSTD_rleCompressBlock(op, dstCapacity, *ip, srcSize, lastBlock);
+        FORWARD_IF_ERROR(cSize, "RLE compress block failed");
+        DEBUGLOG(2, "1: Writing out RLE block, size: %zu", cSize);
+    } else {
+        U32 cBlockHeader;
+        /* Error checking and repcodes update */
+        ZSTD_confirmRepcodesAndEntropyTables(zc);
+        writeBlockHeader(op, cSeqsSize, srcSize, lastBlock);
+        cSize = ZSTD_blockHeaderSize + cSeqsSize;
+        DEBUGLOG(3, "1: Writing out compressed block, size: %zu", cSize);
+    }
+    return cSize;
+}
+
 static size_t ZSTD_compressBlock_splitBlock(ZSTD_CCtx* zc,
                                         void* dst, size_t dstCapacity,
                                         const void* src, size_t srcSize, U32 frame, U32 lastBlock, U32 nbSeq) {
@@ -3201,85 +3255,16 @@ static size_t ZSTD_compressBlock_splitBlock(ZSTD_CCtx* zc,
     DEBUGLOG(3, "match bytes first half: %u match bytes second half: %u, orig: %u", countSeqStoreMatchBytes(&firstHalfSeqStore), countSeqStoreMatchBytes(&secondHalfSeqStore), countSeqStoreMatchBytes(&zc->seqStore));
     DEBUGLOG(2, "Src bytes first half: %zu src bytes second half: %zu", srcBytesFirstHalf, srcBytesSecondHalf);
 
-    {   U32 cSeqsSizeFirstHalf = ZSTD_entropyCompressSequences(&firstHalfSeqStore,
-                &zc->blockState.prevCBlock->entropy, &zc->blockState.nextCBlock->entropy,
-                &zc->appliedParams,
-                op + ZSTD_blockHeaderSize, dstCapacity - ZSTD_blockHeaderSize,
-                srcBytesFirstHalf,
-                zc->entropyWorkspace, ENTROPY_WORKSPACE_SIZE /* statically allocated in resetCCtx */,
-                zc->bmi2);
-
-        if (!zc->isFirstBlock &&
-            ZSTD_maybeRLE(&firstHalfSeqStore) &&
-            ZSTD_isRLE((BYTE const*)src, srcSize)) {
-            /* We don't want to emit our first block as a RLE even if it qualifies because
-            * doing so will cause the decoder (cli only) to throw a "should consume all input error."
-            * This is only an issue for zstd <= v1.4.3
-            */
-            cSeqsSizeFirstHalf = 1;
-        }
-
-        if (cSeqsSizeFirstHalf == 0) {
-            cSizeFirstHalf = ZSTD_noCompressBlock(op, dstCapacity, ip, srcBytesFirstHalf, 0);
-            FORWARD_IF_ERROR(cSizeFirstHalf, "Nocompress block failed");
-            DEBUGLOG(2, "1: Writing out nocompress block, size: %zu", cSizeFirstHalf);
-        } else if (cSeqsSizeFirstHalf == 1) {
-            cSizeFirstHalf = ZSTD_rleCompressBlock(op, dstCapacity, *ip, srcBytesFirstHalf, 0);
-            FORWARD_IF_ERROR(cSizeFirstHalf, "RLE compress block failed");
-            DEBUGLOG(2, "1: Writing out RLE block, size: %zu", cSizeFirstHalf);
-        } else {
-            U32 cBlockHeader;
-            /* Error checking and repcodes update */
-            ZSTD_confirmRepcodesAndEntropyTables(zc);
-            if (zc->blockState.prevCBlock->entropy.fse.offcode_repeatMode == FSE_repeat_valid)
-                zc->blockState.prevCBlock->entropy.fse.offcode_repeatMode = FSE_repeat_check;
-            writeBlockHeader(op, cSeqsSizeFirstHalf, srcBytesFirstHalf, 0);
-            cSizeFirstHalf = ZSTD_blockHeaderSize + cSeqsSizeFirstHalf;
-            DEBUGLOG(3, "1: Writing out compressed block, size: %zu", cSizeFirstHalf);
-        }
-    }
-
-    {   int i;
+    cSizeFirstHalf = ZSTD_compressSequences_singleBlock(zc, &firstHalfSeqStore, op, dstCapacity, ip, srcBytesFirstHalf, 0 /* lastBlock */);
+    {
+        int i;
         for (i = 0; i < ZSTD_REP_NUM; ++i)
             zc->blockState.nextCBlock->rep[i] = zc->blockState.prevCBlock->rep[i];
+        ip += srcBytesFirstHalf;
+        op += cSizeFirstHalf;
+        dstCapacity -= cSizeFirstHalf;
     }
-
-    ip += srcBytesFirstHalf;
-    op += cSizeFirstHalf;
-    dstCapacity -= cSizeFirstHalf;
-
-    {   U32 cSeqsSizeSecondHalf = ZSTD_entropyCompressSequences(&secondHalfSeqStore,
-                &zc->blockState.prevCBlock->entropy, &zc->blockState.nextCBlock->entropy,
-                &zc->appliedParams,
-                op + ZSTD_blockHeaderSize, dstCapacity - ZSTD_blockHeaderSize,
-                srcBytesSecondHalf,
-                zc->entropyWorkspace, ENTROPY_WORKSPACE_SIZE /* statically allocated in resetCCtx */,
-                zc->bmi2);
-        if (ZSTD_maybeRLE(&firstHalfSeqStore) &&
-            ZSTD_isRLE((BYTE const*)src, srcSize)) {
-            cSeqsSizeSecondHalf = 1;
-        }
-
-        if (cSeqsSizeSecondHalf == 0) {
-            cSizeSecondHalf = ZSTD_noCompressBlock(op, dstCapacity, ip, srcBytesSecondHalf, lastBlock);
-            FORWARD_IF_ERROR(cSizeFirstHalf, "Nocompress block failed");
-            DEBUGLOG(2, "2: Writing out nocompress block, size: %zu", cSizeSecondHalf);
-        } else if (cSeqsSizeSecondHalf == 1) {
-            cSizeSecondHalf = ZSTD_rleCompressBlock(op, dstCapacity, *ip, srcBytesSecondHalf, lastBlock);
-            FORWARD_IF_ERROR(cSizeFirstHalf, "RLE compress block failed");
-            DEBUGLOG(2, "2: Writing out RLE block, size: %zu", cSizeSecondHalf);
-        } else {
-            U32 cBlockHeader;
-            /* Error checking and repcodes update */
-            ZSTD_confirmRepcodesAndEntropyTables(zc);
-            if (zc->blockState.prevCBlock->entropy.fse.offcode_repeatMode == FSE_repeat_valid)
-                zc->blockState.prevCBlock->entropy.fse.offcode_repeatMode = FSE_repeat_check;
-            writeBlockHeader(op, cSeqsSizeSecondHalf,  srcBytesSecondHalf, lastBlock);
-            cSizeSecondHalf = ZSTD_blockHeaderSize + cSeqsSizeSecondHalf;
-            DEBUGLOG(3, "2: Writing out compressed block, size: %zu", cSizeSecondHalf);
-        }
-    }
-
+    cSizeSecondHalf = ZSTD_compressSequences_singleBlock(zc, &secondHalfSeqStore, op, dstCapacity, ip, srcBytesSecondHalf, lastBlock /* lastBlock */);
     DEBUGLOG(2, "cSizeFirstHalf: %zu cSizeSecondHalf: %zu", cSizeFirstHalf, cSizeSecondHalf);
     cSize = cSizeFirstHalf + cSizeSecondHalf;
     return cSize;
@@ -3306,12 +3291,6 @@ static size_t ZSTD_compressBlock_internal(ZSTD_CCtx* zc,
         FORWARD_IF_ERROR(bss, "ZSTD_buildSeqStore failed");
         if (bss == ZSTDbss_noCompress) { cSize = 0; goto out; }
         nbSeq = (size_t)(zc->seqStore.sequences - zc->seqStore.sequencesStart);
-    }
-
-    if (zc->seqCollector.collectSequences) {
-        ZSTD_copyBlockSequences(zc);
-        ZSTD_confirmRepcodesAndEntropyTables(zc);
-        return 0;
     }
 
     if (nbSeq >= 2) {
