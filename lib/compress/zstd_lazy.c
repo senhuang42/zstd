@@ -1005,6 +1005,7 @@ FORCE_INLINE_TEMPLATE void ZS_row_prefetch(U32 const* hashTable, U32 row) {
 
 FORCE_INLINE_TEMPLATE void ZS_tagRow_prefetch(BYTE const* tagTable, U32 row) {
     PREFETCH_L1(tagTable + row);
+    //PREFETCH_L1(tagTable + row + 16);
     if (kRowLog == 5) {
         PREFETCH_L1(tagTable + row + 64);
     }
