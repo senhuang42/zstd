@@ -1575,8 +1575,9 @@ ZSTD_reset_matchState(ZSTD_matchState_t* ms,
     }
 
     if (cParams->strategy < ZSTD_btopt) {
-        ms->numRows = ZSTD_highbit32((1u << cParams->hashLog) / kRowSizeU32);
-        assert((1u << ms->numRows) * kRowSizeU32 <= (1u << cParams->hashLog));
+        ms->rowLog = cParams->searchLog < 5 ? 4 : 5;
+        ms->nbRows = ZSTD_highbit32((1u << cParams->hashLog) / (1u << ms->rowLog));
+        assert((1u << ms->numRows) * ms->numRowEntries <= (1u << cParams->hashLog));
     }
     ms->hashLog3 = hashLog3;
 
