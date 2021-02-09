@@ -31,17 +31,13 @@ extern "C" {
 
 #define kUseHash 1
 #define kUseHead 1
-#define kRowLog 4
+/*#define kRowLog 5
 static const U32 kRowEntries = 1u << kRowLog;
-static const U32 kRowMask = kRowEntries - 1;
-static const U32 kHashSizeU32 = kUseHash ? kRowEntries / sizeof(U32) : 0;
-static const U32 kHeadSizeU32 = kUseHead ? 1 : 0;
+static const U32 kRowMask = kRowEntries - 1;*/
+static const U32 kHeadSizeU32 = 1;
 static const U32 kHeadOffset = 0;
-//static const U32 kHashOffset = kHeadOffset + kHeadSizeU32;
 static const U32 kHashOffset = kHeadSizeU32;
-//static const U32 kEntriesOffset = kHashOffset + kHashSizeU32;
 static const U32 kEntriesOffset = 0;
-static const U32 kRowSizeU32 = /* kHeadSizeU32 + kHashSizeU32 */ + kRowEntries;
 
 static const U32 kShortBits = 8;
 static const U32 kShortMask = (1u << kShortBits) - 1;
@@ -193,11 +189,15 @@ struct ZSTD_matchState_t {
                              */
     U32 nextToUpdate;       /* index from which to continue table update */
     U32 hashLog3;           /* dispatch table for matches of len==3 : larger == faster, more memory */
-    U32 numRows;
-    U32 numTagRows;
+
+    U32 nbRows;
+    U32 rowLog;
+
     U32* hashTable;
     U32* hashTable3;
     U32* chainTable;
+    U16* tagTable;          /* Used for SIMD row-based match finder. Stores rows of 17 1-byte hashes every 32 bytes. */
+
     int dedicatedDictSearch;  /* Indicates whether this matchState is using the
                                * dedicated dictionary search structure.
                                */
@@ -206,7 +206,6 @@ struct ZSTD_matchState_t {
     ZSTD_compressionParameters cParams;
     const rawSeqStore_t* ldmSeqStore;
     U32 hashCache[kPrefetchAdv];
-    U16* tagTable;
 };
 
 typedef struct {
