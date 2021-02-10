@@ -1177,30 +1177,30 @@ size_t ZSTD_RowFindBestMatch_generic (
 FORCE_INLINE_TEMPLATE size_t ZSTD_RowFindBestMatch_16entries_selectMLS (
                         ZSTD_matchState_t* ms,
                         const BYTE* ip, const BYTE* const iLimit,
-                        size_t* offsetPtr)
+                        const ZSTD_dictMode_e dictMode, size_t* offsetPtr)
 {
     switch(ms->cParams.minMatch)
     {
     default : /* includes case 3 */
-    case 4 : return ZSTD_RowFindBestMatch_generic(ms, ip, iLimit, offsetPtr, 4, ZSTD_noDict, kRowLog16, kRowEntries16, kRowMask16);
-    case 5 : return ZSTD_RowFindBestMatch_generic(ms, ip, iLimit, offsetPtr, 5, ZSTD_noDict, kRowLog16, kRowEntries16, kRowMask16);
+    case 4 : return ZSTD_RowFindBestMatch_generic(ms, ip, iLimit, offsetPtr, 4, dictMode, kRowLog16, kRowEntries16, kRowMask16);
+    case 5 : return ZSTD_RowFindBestMatch_generic(ms, ip, iLimit, offsetPtr, 5, dictMode, kRowLog16, kRowEntries16, kRowMask16);
     case 7 :
-    case 6 : return ZSTD_RowFindBestMatch_generic(ms, ip, iLimit, offsetPtr, 6, ZSTD_noDict, kRowLog16, kRowEntries16, kRowMask16);
+    case 6 : return ZSTD_RowFindBestMatch_generic(ms, ip, iLimit, offsetPtr, 6, dictMode, kRowLog16, kRowEntries16, kRowMask16);
     }
 }
 
 FORCE_INLINE_TEMPLATE size_t ZSTD_RowFindBestMatch_32entries_selectMLS (
                         ZSTD_matchState_t* ms,
                         const BYTE* ip, const BYTE* const iLimit,
-                        size_t* offsetPtr)
+                        const ZSTD_dictMode_e dictMode, size_t* offsetPtr)
 {
     switch(ms->cParams.minMatch)
     {
     default : /* includes case 3 */
-    case 4 : return ZSTD_RowFindBestMatch_generic(ms, ip, iLimit, offsetPtr, 4, ZSTD_noDict, kRowLog32, kRowEntries32, kRowMask32);
-    case 5 : return ZSTD_RowFindBestMatch_generic(ms, ip, iLimit, offsetPtr, 5, ZSTD_noDict, kRowLog32, kRowEntries32, kRowMask32);
+    case 4 : return ZSTD_RowFindBestMatch_generic(ms, ip, iLimit, offsetPtr, 4, dictMode, kRowLog32, kRowEntries32, kRowMask32);
+    case 5 : return ZSTD_RowFindBestMatch_generic(ms, ip, iLimit, offsetPtr, 5, dictMode, kRowLog32, kRowEntries32, kRowMask32);
     case 7 :
-    case 6 : return ZSTD_RowFindBestMatch_generic(ms, ip, iLimit, offsetPtr, 6, ZSTD_noDict, kRowLog32, kRowEntries32, kRowMask32);
+    case 6 : return ZSTD_RowFindBestMatch_generic(ms, ip, iLimit, offsetPtr, 6, dictMode, kRowLog32, kRowEntries32, kRowMask32);
     }
 }
 
@@ -1212,8 +1212,21 @@ FORCE_INLINE_TEMPLATE size_t ZSTD_RowFindBestMatch_selectEntries (
     switch(ms->cParams.searchLog)
     {
     default :
-    case 4 : return ZSTD_RowFindBestMatch_16entries_selectMLS(ms, ip, iLimit, offsetPtr);
-    case 5 : return ZSTD_RowFindBestMatch_32entries_selectMLS(ms, ip, iLimit, offsetPtr);
+    case 4 : return ZSTD_RowFindBestMatch_16entries_selectMLS(ms, ip, iLimit, ZSTD_noDict, offsetPtr);
+    case 5 : return ZSTD_RowFindBestMatch_32entries_selectMLS(ms, ip, iLimit, ZSTD_noDict, offsetPtr);
+    }
+}
+
+FORCE_INLINE_TEMPLATE size_t ZSTD_RowFindBestMatch_extDict_selectEntries (
+                        ZSTD_matchState_t* ms,
+                        const BYTE* ip, const BYTE* const iLimit,
+                        size_t* offsetPtr)
+{
+    switch(ms->cParams.searchLog)
+    {
+    default :
+    case 4 : return ZSTD_RowFindBestMatch_16entries_selectMLS(ms, ip, iLimit, ZSTD_extDict, offsetPtr);
+    case 5 : return ZSTD_RowFindBestMatch_32entries_selectMLS(ms, ip, iLimit, ZSTD_extDict, offsetPtr);
     }
 }
 
@@ -1595,7 +1608,7 @@ size_t ZSTD_compressBlock_lazy_extDict_generic(
     typedef size_t (*searchMax_f)(
                         ZSTD_matchState_t* ms,
                         const BYTE* ip, const BYTE* iLimit, size_t* offsetPtr);
-    searchMax_f searchMax = searchMethod==search_binaryTree ? ZSTD_BtFindBestMatch_extDict_selectMLS : ZSTD_HcFindBestMatch_extDict_selectMLS;
+    searchMax_f searchMax = searchMethod==search_binaryTree ? ZSTD_BtFindBestMatch_extDict_selectMLS : ZSTD_RowFindBestMatch_extDict_selectEntries;
 
     U32 offset_1 = rep[0], offset_2 = rep[1];
 
