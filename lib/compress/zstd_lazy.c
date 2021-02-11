@@ -787,7 +787,7 @@ FORCE_INLINE_TEMPLATE void ZSTD_row_update_internal(ZSTD_matchState_t* ms, const
         U32 const hash = ZSTD_row_nextCachedHash(ms->hashCache, hashTable, tagTable, base, idx, hashLog, rowLog, mls, shouldPrefetch);
         U32 const relRow = (hash >> kShortBits) << rowLog;
         U32* const row = hashTable + relRow;
-        BYTE* const tagRow = (BYTE* const)(tagTable + relRow);
+        BYTE* tagRow = (BYTE*)(tagTable + relRow);
         U32 const pos = ZSTD_row_nextIndex(tagRow, rowMask);
 
         assert(hash == ZSTD_hashPtr(base + idx, hashLog + kShortBits, mls));
@@ -848,7 +848,6 @@ size_t ZSTD_RowFindBestMatch_generic (
     const U32 withinMaxDistance = (curr - lowestValid > maxDistance) ? curr - maxDistance : lowestValid;
     const U32 isDictionary = (ms->loadedDictEnd != 0);
     const U32 lowLimit = isDictionary ? lowestValid : withinMaxDistance;
-    //const U32 shouldPrefetch = 1;
     U32 nbAttempts = 1U << cParams->searchLog;
     size_t ml=4-1;
 
@@ -870,7 +869,7 @@ size_t ZSTD_RowFindBestMatch_generic (
         U32 const relRow = (hash >> kShortBits) << rowLog;
         U32 const tag = hash & kShortMask;
         U32* const row = hashTable + relRow;
-        BYTE* const tagRow = (BYTE* const)(tagTable + relRow);
+        BYTE* tagRow = (BYTE*)(tagTable + relRow);
         U32 const head = *tagRow;
         U32 matchBuffer[kRowEntries32];
         size_t numMatches = 0;
@@ -903,10 +902,12 @@ size_t ZSTD_RowFindBestMatch_generic (
             U32 const matchIndex = row[matchPos];
             if (matchIndex < lowLimit)
                 break;
-            if ((dictMode != ZSTD_extDict) || matchIndex >= dictLimit) {
-                PREFETCH_L1(base + matchIndex);
-            } else {
-                PREFETCH_L1(dictBase + matchIndex);
+            if (shouldPrefetch) {
+                if ((dictMode != ZSTD_extDict) || matchIndex >= dictLimit) {
+                    PREFETCH_L1(base + matchIndex);
+                } else {
+                    PREFETCH_L1(dictBase + matchIndex);
+                }
             }
             matchBuffer[numMatches++] = matchIndex;
         }
@@ -1089,7 +1090,8 @@ FORCE_INLINE_TEMPLATE size_t ZSTD_RowFindBestMatch_selectShouldPrefetch (
     case 0 : return ZSTD_RowFindBestMatch_generic(ms, ip, iLimit, offsetPtr, mls, dictMode, 0, rowLog, rowEntries, rowMask);
     }*/
     /* TODO: The act of templating this reduces speed by ~2%.
-     * Re-enable templating by prefetching once we figure out why this happens.
+     * Re-enable templating by prefetching once we figure out how to avoid this
+     * Also add an enum for prefetch type.
      */
     (void)shouldPrefetch;
     return ZSTD_RowFindBestMatch_generic(ms, ip, iLimit, offsetPtr, mls, dictMode, 1, rowLog, rowEntries, rowMask);
