@@ -1727,9 +1727,9 @@ static size_t ZSTD_resetCCtx_internal(ZSTD_CCtx* zc,
                 zc->entropyWorkspace = (U32*) ZSTD_cwksp_reserve_object(ws, ENTROPY_WORKSPACE_SIZE);
                 RETURN_ERROR_IF(zc->blockState.nextCBlock == NULL, memory_allocation, "couldn't allocate entropyWorkspace");
                 {   /* Align the tables section to 64 bytes by reserving an extra dummy object of [0, 64) bytes */
-                    U32 const bytesToAlignTables = ZSTD_cwksp_bytes_to_align_tables(ws);
+                    size_t const bytesToAlignTables = ZSTD_cwksp_bytes_to_align_tables(ws);
                     BYTE* dummyObjForAlignment = (BYTE*)ZSTD_cwksp_reserve_object(ws, bytesToAlignTables);
-                    DEBUGLOG(5, "Reserving additional %u bytes object to align hashTable", bytesToAlignTables);
+                    DEBUGLOG(5, "Reserving additional %zu bytes object to align hashTable", bytesToAlignTables);
                     RETURN_ERROR_IF(dummyObjForAlignment == NULL, memory_allocation, "couldn't allocate dummy object for 64-byte alignment");
                     zc->alignmentBytes = bytesToAlignTables;
                 }
