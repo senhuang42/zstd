@@ -1797,9 +1797,18 @@ static size_t ZSTD_resetCCtx_internal(ZSTD_CCtx* zc,
              * so that we always reserve an extra 64 bytes for alignment. This allows the CCtx size estimation to remain accurate.
              */
             size_t const extraBytes = ZSTD_CWKSP_ALIGN_TABLES_BYTES - zc->alignmentBytes;
-            BYTE* dummyObjForEstimation = (BYTE*)ZSTD_cwksp_reserve_aligned(ws, extraBytes);
-            DEBUGLOG(5, "Reserving additional %u bytes objects to make alignment cost 64 bytes. Complement: %u", extraBytes, zc->alignmentBytes);
-            RETURN_ERROR_IF(dummyObjForEstimation == NULL, memory_allocation, "Failed to allocate dummy aligned buffer");
+            DEBUGLOG(5, "Reserving additional %zu bytes objects to make alignment cost 64 bytes. Complement: %u", extraBytes, zc->alignmentBytes);
+            if (zc->alignmentBytes == 0) {
+                /* Fixed-size increase in allocation cost with ASAN means that if the hashTable was already aligned,
+                 * we must always still allocate two dummy objects to achieve the correct space usage.
+                 */
+                BYTE* dummyObjForEstimation = (BYTE*)ZSTD_cwksp_reserve_aligned(ws, extraBytes/2);
+                BYTE* secondDummyObjForEstimation = (BYTE*)ZSTD_cwksp_reserve_aligned(ws, extraBytes/2);
+                RETURN_ERROR_IF(!dummyObjForEstimation || !secondDummyObjForEstimation, memory_allocation, "Failed to allocate dummy aligned buffer");
+            } else {
+                BYTE* dummyObjForEstimation = (BYTE*)ZSTD_cwksp_reserve_aligned(ws, extraBytes);
+                RETURN_ERROR_IF(!dummyObjForEstimation, memory_allocation, "Failed to allocate dummy aligned buffer");
+            }
         }
 
         /* Due to alignment, when reusing a workspace, we can actually consume
