@@ -1323,6 +1323,8 @@ FIO_compressZstdFrame(FIO_ctx_t* const fCtx,
     }
     (void)srcFileName;
 
+    ZSTD_CCtx_setParameter(ress.cctx, ZSTD_c_useRowMatchfinder, 1);
+
     /* Main compression loop */
     do {
         size_t stillToFlush;
