@@ -1207,7 +1207,7 @@ size_t ZSTD_RowFindBestMatch_generic (
         U32 const head = *tagRow & rowMask;
         U32 matchBuffer[kRowEntries32];
         size_t numMatches = 0;
-        size_t m = 0;
+        size_t currMatch = 0;
         ZSTD_VecMask matches = 0;
 
         /* Generate a "matches" bitfield. The nth bit == 1 if the newly-computed "tag" matches the hash at the nth
@@ -1271,8 +1271,8 @@ size_t ZSTD_RowFindBestMatch_generic (
         }
 
         /* Return the longest match */
-        for (; m < numMatches; ++m) {
-            U32 const matchIndex = matchBuffer[m];
+        for (; currMatch < numMatches; ++currMatch) {
+            U32 const matchIndex = matchBuffer[currMatch];
             size_t currentMl=0;
             assert(matchIndex < curr);
             assert(matchIndex >= lowLimit);
@@ -1547,7 +1547,7 @@ ZSTD_compressBlock_lazy_generic(
     const BYTE* ip = istart;
     const BYTE* anchor = istart;
     const BYTE* const iend = istart + srcSize;
-    const BYTE* const ilimit = iend - 16;
+    const BYTE* const ilimit = searchMethod == search_rowHash ? iend - 16 : iend - 8;
     const BYTE* const base = ms->window.base;
     const U32 prefixLowestIndex = ms->window.dictLimit;
     const BYTE* const prefixLowest = base + prefixLowestIndex;
@@ -1968,7 +1968,7 @@ size_t ZSTD_compressBlock_lazy_extDict_generic(
     const BYTE* ip = istart;
     const BYTE* anchor = istart;
     const BYTE* const iend = istart + srcSize;
-    const BYTE* const ilimit = iend - 16;
+    const BYTE* const ilimit = searchMethod == search_rowHash ? iend - 16 : iend - 8;
     const BYTE* const base = ms->window.base;
     const U32 dictLimit = ms->window.dictLimit;
     const BYTE* const prefixStart = base + dictLimit;
