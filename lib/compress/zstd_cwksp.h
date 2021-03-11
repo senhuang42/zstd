@@ -160,6 +160,7 @@ typedef struct {
 /*-*************************************
 *  Functions
 ***************************************/
+
 MEM_STATIC size_t ZSTD_cwksp_available_space(ZSTD_cwksp* ws);
 
 MEM_STATIC void ZSTD_cwksp_assert_internal_consistency(ZSTD_cwksp* ws) {
@@ -557,7 +558,7 @@ MEM_STATIC size_t ZSTD_cwksp_reserve_first_dummy_object_for_alignment(ZSTD_cwksp
     BYTE* dummyObjForAlignment;
     if (bytesToAlignTables != ZSTD_CWKSP_ALIGN_TABLES_BYTES) {
         dummyObjForAlignment = (BYTE*)ZSTD_cwksp_reserve_object(ws, bytesToAlignTables);
-        DEBUGLOG(5, "Reserving additional %zu bytes object to align hashTable", bytesToAlignTables);
+        DEBUGLOG(4, "Reserving additional %zu bytes object to align hashTable", bytesToAlignTables);
         RETURN_ERROR_IF(dummyObjForAlignment == NULL, memory_allocation, "couldn't allocate dummy object for 64-byte alignment");
     } else {
         bytesToAlignTables = 0;
@@ -577,7 +578,7 @@ MEM_STATIC size_t ZSTD_cwksp_reserve_first_dummy_object_for_alignment(ZSTD_cwksp
 MEM_STATIC size_t ZSTD_cwksp_reserve_second_dummy_object_for_alignment(ZSTD_cwksp* ws, const size_t alignmentBytes) {  
 
     size_t const extraBytes = ZSTD_CWKSP_ALIGN_TABLES_BYTES - alignmentBytes;
-    DEBUGLOG(5, "Reserving additional %zu bytes objects to make alignment cost 64 bytes. Complement: %zu", extraBytes, alignmentBytes);
+    DEBUGLOG(4, "Reserving additional %zu bytes objects to make alignment cost 64 bytes. Complement: %zu", extraBytes, alignmentBytes);
     if (alignmentBytes == 0) {
         /* If the hashTable was already aligned, ZSTD_cwksp_reserve_first_dummy_object_for_alignment()
          * does not allocate a new object. However, we must always still allocate two dummy objects to
