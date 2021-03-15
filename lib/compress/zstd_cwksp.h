@@ -160,6 +160,7 @@ typedef struct {
 /*-*************************************
 *  Functions
 ***************************************/
+
 MEM_STATIC size_t ZSTD_cwksp_available_space(ZSTD_cwksp* ws);
 
 MEM_STATIC void ZSTD_cwksp_assert_internal_consistency(ZSTD_cwksp* ws) {
@@ -252,7 +253,7 @@ MEM_STATIC void* ZSTD_cwksp_reserve_internal(
     alloc = (BYTE *)alloc - 2 * ZSTD_CWKSP_ASAN_REDZONE_SIZE;
 #endif
 
-    DEBUGLOG(4, "cwksp: reserving %p %zd bytes, %zd bytes remaining",
+    DEBUGLOG(5, "cwksp: reserving %p %zd bytes, %zd bytes remaining",
         alloc, bytes, ZSTD_cwksp_available_space(ws) - bytes);
     ZSTD_cwksp_assert_internal_consistency(ws);
     assert(alloc >= bottom);
@@ -304,7 +305,7 @@ MEM_STATIC void* ZSTD_cwksp_reserve_table(ZSTD_cwksp* ws, size_t bytes) {
     void* end = (BYTE *)alloc + bytes;
     void* top = ws->allocStart;
 
-    DEBUGLOG(4, "cwksp: reserving %p table %zd bytes, %zd bytes remaining",
+    DEBUGLOG(5, "cwksp: reserving %p table %zd bytes, %zd bytes remaining",
         alloc, bytes, ZSTD_cwksp_available_space(ws) - bytes);
     assert((bytes & (sizeof(U32)-1)) == 0);
     ZSTD_cwksp_internal_advance_phase(ws, phase);
@@ -339,7 +340,7 @@ MEM_STATIC void* ZSTD_cwksp_reserve_object(ZSTD_cwksp* ws, size_t bytes) {
     end = (BYTE *)end + 2 * ZSTD_CWKSP_ASAN_REDZONE_SIZE;
 #endif
 
-    DEBUGLOG(4,
+    DEBUGLOG(5,
         "cwksp: reserving %p object %zd bytes (rounded to %zd), %zd bytes remaining",
         alloc, bytes, roundedBytes, ZSTD_cwksp_available_space(ws) - roundedBytes);
     assert(((size_t)alloc & (sizeof(void*)-1)) == 0);

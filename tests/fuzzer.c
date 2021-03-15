@@ -1115,7 +1115,7 @@ static int basicUnitTests(U32 const seed, double compressibility)
     }
     DISPLAYLEVEL(3, "OK \n");
 
-    DISPLAYLEVEL(3, "test%3d : Loading dictionary before setting parameters is the same as loading after : ", testNb++);
+    DISPLAYLEVEL(3, "test%3d : re-using a CCtx should compress the same : ", testNb++);
     {   size_t const sampleSize = 30;
         int i;
         for (i=0; i<20; i++)
@@ -1689,10 +1689,7 @@ static int basicUnitTests(U32 const seed, double compressibility)
                                     compressedBuffer, compressedBufferSize,
                        (const char*)CNBuffer + dictSize, CNBuffSize - dictSize),
                       cSize += r);
-            if (cSize != cSizeOrig) {
-                DISPLAYLEVEL(3, "not equal sizes\n");
-                goto _output_error;   /* should be identical ==> same size */
-            }
+            if (cSize != cSizeOrig) goto _output_error;   /* should be identical ==> same size */
         }
         DISPLAYLEVEL(3, "OK (%u bytes : %.2f%%)\n", (unsigned)cSize, (double)cSize/CNBuffSize*100);
 

@@ -610,7 +610,7 @@ println "\n===>  Advanced compression parameters "
 println "Hello world!" | zstd --zstd=windowLog=21,      - -o tmp.zst && die "wrong parameters not detected!"
 println "Hello world!" | zstd --zstd=windowLo=21        - -o tmp.zst && die "wrong parameters not detected!"
 println "Hello world!" | zstd --zstd=windowLog=21,slog  - -o tmp.zst && die "wrong parameters not detected!"
-println "Hello world!" | zstd --zstd=strategy=9        - -o tmp.zst && die "parameter out of bound not detected!"  # > btultra2 : does not exist
+println "Hello world!" | zstd --zstd=strategy=10        - -o tmp.zst && die "parameter out of bound not detected!"  # > btultra2 : does not exist
 test ! -f tmp.zst  # tmp.zst should not be created
 roundTripTest -g512K
 roundTripTest -g512K " --zstd=mml=3,tlen=48,strat=6"
